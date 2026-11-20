@@ -32,4 +32,18 @@ describe('exam views (teacher read model)', () => {
     expect(toExamDetail('e', {}, {}, {}).questions).toEqual([]);
     expect(toQuestionView({ options: [{ text: 'x' }] }, 2, {})).toMatchObject({ id: 'q_3', type: 'MCQ', options: [{ id: 'opt1', text: 'x' }] });
   });
+
+  it('shows the answer of a Numeric question even though the server stores it as correctOptionId', () => {
+    // What createAndSegregateExam writes for a question without options and answer "9".
+    const q = toQuestionView({ id: 'n1', type: 'Numeric', en: { text: 'F in mN?' } }, 0, { n1: { correctOptionId: '9', answer: '9', explanation: { en: 'F = 9 mN' } } });
+    expect(q.correctOptionId).toBeUndefined();
+    expect(q.answer).toBe('9');
+    expect(q.explanation).toBe('F = 9 mN');
+  });
+
+  it('ignores a correctOptionId that matches no option', () => {
+    const q = toQuestionView({ id: 'm', en: { text: 't', options: [{ id: 'opt1', text: 'a' }] } }, 0, { m: { correctOptionId: 'opt9' } });
+    expect(q.correctOptionId).toBeUndefined();
+    expect(q.answer).toBe('opt9');
+  });
 });

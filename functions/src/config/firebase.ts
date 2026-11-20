@@ -11,6 +11,9 @@ if (admin.apps.length === 0) {
 }
 
 export const db = admin.firestore();
+// Drop undefined fields instead of rejecting the whole write: question builders set optional
+// fields such as en.options to undefined for non-MCQ questions (Numeric / Short Text / Subjective).
+db.settings({ ignoreUndefinedProperties: true });
 
 let _rtdb: admin.database.Database | undefined;
 try {

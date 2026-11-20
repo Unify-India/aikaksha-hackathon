@@ -91,8 +91,12 @@ export function toQuestionView(raw: unknown, index: number, keys: Data): IExamQu
   const rawOptions = (Array.isArray(en['options']) ? en['options'] : Array.isArray(q['options']) ? q['options'] : []) as unknown[];
   const id = str(q['id'], `q_${index + 1}`);
   const key = obj(keys[id]);
-  const correctOptionId = str(key['correctOptionId']) || undefined;
-  const answer = str(key['answer']) || undefined;
+  const options = rawOptions.map(obj).map((o, i) => ({ id: str(o['id'], `opt${i + 1}`), text: str(o['text']) }));
+  const rawCorrect = str(key['correctOptionId']) || undefined;
+  // createAndSegregateExam falls back to the answer for correctOptionId when a question has no
+  // options (Numeric / Short Text), so only treat it as an option id when such an option exists.
+  const correctOptionId = rawCorrect && options.some((o) => o.id === rawCorrect) ? rawCorrect : undefined;
+  const answer = str(key['answer']) || (correctOptionId ? undefined : rawCorrect);
   const view: IExamQuestionView = {
     id,
     type: str(q['type'], rawOptions.length ? 'MCQ' : 'Subjective'),
@@ -102,7 +106,7 @@ export function toQuestionView(raw: unknown, index: number, keys: Data): IExamQu
     subtopic: str(q['subtopic']),
     difficulty: str(q['difficulty'], 'medium'),
     text: str(en['text'] ?? q['text']),
-    options: rawOptions.map(obj).map((o, i) => ({ id: str(o['id'], `opt${i + 1}`), text: str(o['text']) })),
+    options,
   };
   if (correctOptionId) view.correctOptionId = correctOptionId;
   // For MCQs the server copies the option id into `answer`; only expose real answers.
