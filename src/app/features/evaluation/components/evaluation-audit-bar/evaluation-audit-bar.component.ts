@@ -24,7 +24,14 @@ import { ISheetEvaluation } from '../../models/evaluation.models';
               }
             </p>
             @if (sheet.status === 'failed') {
-              <p role="alert" class="mt-1 text-sm text-rose-800 dark:text-rose-300">✗ Grading failed: {{ sheet.error }}</p>
+              <div class="mt-1 flex flex-wrap items-center gap-3">
+                <p role="alert" class="text-sm text-rose-800 dark:text-rose-300">✗ Grading failed: {{ sheet.error }}</p>
+                <button type="button"
+                  class="rounded-lg bg-rose-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
+                  [disabled]="retrying()" (click)="retry.emit()">
+                  {{ retrying() ? 'Retrying…' : 'Retry grading' }}
+                </button>
+              </div>
             }
             @if (sheet.checksum) {
               <p class="mt-1 font-mono text-xs text-slate-600 dark:text-slate-300">
@@ -75,10 +82,12 @@ export class EvaluationAuditBarComponent {
   readonly index = input(0);
   readonly total = input(0);
   readonly busy = input(false);
+  readonly retrying = input(false);
 
   readonly previous = output<void>();
   readonly next = output<void>();
   readonly approve = output<void>();
+  readonly retry = output<void>();
 
   protected readonly overrides = computed(
     () => this.sheet()?.questions.filter((q) => q.teacherOverride !== undefined).length ?? 0,

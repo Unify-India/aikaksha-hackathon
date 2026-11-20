@@ -1,5 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { EVALUATION_BACKEND } from './evaluation-backend';
+import { EVALUATION_BACKEND, EVALUATION_ENGINE } from './evaluation-backend';
+import { EVALUATION_REPOSITORY } from './evaluation-repository';
+import { InMemoryEvaluationRepository } from './in-memory-evaluation-repository.testing';
+import { SAMPLE_MATHS_SCHEME } from './evaluation-fixtures.testing';
 import { FakeEvaluationBackend } from './fake-evaluation-backend.testing';
 import { PdfDocumentService } from './pdf-document.service';
 import { fakePdfService } from './fake-pdf.testing';
@@ -33,17 +36,21 @@ describe('evaluation privacy and validation helpers', () => {
     expect(validateSheetFile(new File(['x'], 'a.png', { type: 'image/png' }))).toContain('only PDF');
     const huge = new File(['x'], 'big.pdf', { type: 'application/pdf' });
     Object.defineProperty(huge, 'size', { value: MAX_SHEET_BYTES + 1 });
-    expect(validateSheetFile(huge)).toContain('50 MB');
+    expect(validateSheetFile(huge)).toContain('30 MB');
   });
 });
 
-describe('EvaluationStore (mock backend)', () => {
+describe('EvaluationStore (fake backend + in-memory Firebase)', () => {
   let store: EvaluationStore;
+  let repo: InMemoryEvaluationRepository;
 
   beforeEach(() => {
     // Never call real Gemini or a server from tests: use the test-only fake backend.
+    repo = new InMemoryEvaluationRepository();
     TestBed.configureTestingModule({
       providers: [
+        { provide: EVALUATION_ENGINE, useValue: 'gemini' },
+        { provide: EVALUATION_REPOSITORY, useValue: repo },
         { provide: EVALUATION_BACKEND, useClass: FakeEvaluationBackend },
         { provide: PdfDocumentService, useValue: fakePdfService },
       ],
@@ -86,18 +93,101 @@ describe('EvaluationStore (mock backend)', () => {
     expect(store.sheets()[0].status).toBe('approved');
     expect(store.sheets()[0].totalAwarded).toBe(others + newMarks);
     expect(store.activeSheet()!.studentLabel).toBe('Student B');
-  }, 20_000);
+
+    // Saved under the question paper, with the status trail draft → in_progress → graded → approved.
+    const saved = repo.sheets.get(SAMPLE_MATHS_SCHEME.id)!;
+    expect(saved.size).toBe(2);
+    expect(repo.statusHistory.get(sheet.submissionId)).toEqual(['draft', 'in_progress', 'graded', 'approved']);
+    expect(saved.get(sheet.submissionId)!.questions.find((q) => q.questionId === question.questionId)!.teacherOverride).toBe(newMarks);
+    expect(saved.get(sheet.submissionId)!.filePath).toContain(`question_papers/${SAMPLE_MATHS_SCHEME.id}/answer_sheets/`);
+    expect([...saved.values()].some((s) => /Aryan|Sadab/.test(JSON.stringify(s)))).toBe(false);
+
+    // A later batch is listed under the same paper and continues the numbering.
+    store.startOver();
+    await vi.waitFor(() => expect(store.savedSheets()).toHaveLength(2));
+    expect(store.learning().corrections).toBe(1);
+    await store.startGrading([pdf('Neha Kumari 12.pdf')]);
+    expect(store.sheets().map((s) => s.studentLabel)).toEqual(['Student A', 'Student B', 'Student C']);
+    // The teacher's earlier correction is passed to the grader as a marking example, and logged.
+    const backend = TestBed.inject(EVALUATION_BACKEND) as FakeEvaluationBackend;
+    expect(backend.lastOptions?.teacherExamples?.some((e) => e.kind === 'corrected' && e.questionId === question.questionId)).toBe(true);
+    expect(store.activity()[0]).toMatchObject({ tool: 'apply_teacher_feedback', status: 'done' });
+    await vi.waitFor(() => expect(store.phase()).toBe('review'), { timeout: 12_000, interval: 100 });
+    expect(repo.sheets.get(SAMPLE_MATHS_SCHEME.id)!.size).toBe(3);
+  }, 30_000);
 
   it('drafts a scheme from a question paper and approves it', async () => {
     await store.loadSchemes();
     await store.draftFromQuestionPaper(new File(['%PDF-1.3'], 'class 12 test question.pdf', { type: 'application/pdf' }));
     const draft = store.pendingDraft();
-    expect(draft?.status).toBe('draft');
+    expect(draft?.status).toBe('pending');
+    expect(repo.papers.get(draft!.id)).toMatchObject({ status: 'pending', filePath: expect.stringContaining('question-paper.pdf') });
+    expect(store.pendingSchemes().map((s) => s.id)).toContain(draft!.id);
     expect(store.activity().at(-1)).toMatchObject({ tool: 'draft_marking_scheme', status: 'done' });
 
     await store.approveDraft(draft!);
     expect(store.pendingDraft()).toBeNull();
     expect(store.selectedScheme()?.id).toBe(draft!.id);
     expect(store.selectedScheme()?.status).toBe('approved');
+    expect(repo.papers.get(draft!.id)!.status).toBe('approved');
   }, 10_000);
+  it('cancels drafting a scheme without showing an error', async () => {
+    await store.loadSchemes();
+    const drafting = store.draftFromQuestionPaper(new File(['%PDF-1.3'], 'question paper.pdf', { type: 'application/pdf' }));
+    await vi.waitFor(() =>
+      expect(store.activity().some((a) => a.tool === 'draft_marking_scheme' && a.status === 'running')).toBe(true),
+    );
+    expect(store.busy()).toBe('drafting');
+
+    store.cancelDrafting();
+    await drafting;
+
+    expect(store.busy()).toBe('idle');
+    expect(store.error()).toBeNull();
+    expect(store.pendingDraft()).toBeNull();
+    expect(store.activity().at(-1)).toMatchObject({
+      tool: 'draft_marking_scheme',
+      status: 'failed',
+      detail: 'Cancelled by the teacher',
+    });
+    // The question paper stays saved as a hidden 'draft'; nothing is waiting for approval.
+    expect([...repo.papers.values()].filter((p) => p.status === 'draft')).toHaveLength(1);
+    expect(store.pendingSchemes()).toHaveLength(0);
+  }, 10_000);
+  it('retries a failed sheet in place: same id, same student, saved PDF', async () => {
+    await repo.saveSheet(SAMPLE_MATHS_SCHEME.id, {
+      submissionId: 'job-old-3',
+      jobId: 'job-old',
+      schemeId: SAMPLE_MATHS_SCHEME.id,
+      studentLabel: 'Student C',
+      fileName: 'sheet-03.pdf',
+      mimeType: 'application/pdf',
+      pageCount: 12,
+      checksum: '',
+      status: 'failed',
+      error: 'Grading did not finish.',
+      questions: [],
+      totalAwarded: 0,
+      totalMax: 23,
+      ocrConfidence: 0,
+      needsReview: false,
+      filePath: 'question_papers/x/answer_sheets/job-old-3.pdf',
+    });
+    await store.loadSchemes();
+    await vi.waitFor(() => expect(store.savedSheets()).toHaveLength(1));
+    store.openSavedResults('job-old-3');
+
+    await store.retrySheet('job-old-3');
+    expect(store.error()).toBeNull();
+    await vi.waitFor(
+      () => expect(['graded', 'needs_review']).toContain(store.activeSheet()!.status),
+      { timeout: 8_000, interval: 100 },
+    );
+    const retried = store.activeSheet()!;
+    expect(retried).toMatchObject({ submissionId: 'job-old-3', studentLabel: 'Student C' });
+    expect(retried.questions.length).toBe(SAMPLE_MATHS_SCHEME.questions.length);
+    expect(retried.error).toBeUndefined();
+    expect(repo.sheets.get(SAMPLE_MATHS_SCHEME.id)!.size).toBe(1);
+    expect(repo.statusHistory.get('job-old-3')).toEqual(['failed', 'draft', 'in_progress', 'graded']);
+  }, 15_000);
 });

@@ -1,5 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { EVALUATION_BACKEND } from './data/evaluation-backend';
+import { EVALUATION_BACKEND, EVALUATION_ENGINE } from './data/evaluation-backend';
+import { EVALUATION_REPOSITORY } from './data/evaluation-repository';
+import { InMemoryEvaluationRepository } from './data/in-memory-evaluation-repository.testing';
 import { FakeEvaluationBackend } from './data/fake-evaluation-backend.testing';
 import { EvaluationStore } from './data/evaluation.store';
 import { PdfDocumentService } from './data/pdf-document.service';
@@ -13,6 +15,8 @@ describe('EvaluationCockpitComponent', () => {
     // Never call real Gemini or a server from tests: use the test-only fake backend.
     TestBed.configureTestingModule({
       providers: [
+        { provide: EVALUATION_ENGINE, useValue: 'gemini' },
+        { provide: EVALUATION_REPOSITORY, useValue: new InMemoryEvaluationRepository() },
         { provide: EVALUATION_BACKEND, useClass: FakeEvaluationBackend },
         { provide: PdfDocumentService, useValue: fakePdfService },
       ],
@@ -79,4 +83,23 @@ describe('EvaluationCockpitComponent', () => {
     expect(store.activeSheet()!.questions[0].teacherOverride).toBe(target);
     expect(el.textContent).toContain(`Enter a mark between 0 and ${first.max}`);
   }, 15_000);
+  it('shows a Cancel drafting button while Gemini drafts, and cancels', async () => {
+    const fixture = TestBed.createComponent(EvaluationCockpitComponent);
+    const store = TestBed.inject(EvaluationStore);
+    await vi.waitFor(() => expect(store.busy()).toBe('idle'));
+
+    const drafting = store.draftFromQuestionPaper(new File(['%PDF-1.3'], 'paper.pdf', { type: 'application/pdf' }));
+    await vi.waitFor(() => expect(store.busy()).toBe('drafting'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const cancel = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Cancel drafting'));
+    expect(cancel).toBeTruthy();
+
+    cancel!.click();
+    await drafting;
+    fixture.detectChanges();
+    expect(store.busy()).toBe('idle');
+    expect([...el.querySelectorAll('button')].some((b) => b.textContent?.includes('Cancel drafting'))).toBe(false);
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+  }, 10_000);
 });

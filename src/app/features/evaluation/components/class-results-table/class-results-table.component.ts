@@ -8,7 +8,7 @@ import {
   effectiveVerdict,
   questionLabel,
 } from '../../models/evaluation.models';
-import { REVIEW_CONFIDENCE_THRESHOLD } from '../../data/sheet-summary';
+import { isAnswerFlagged } from '../../data/sheet-summary';
 
 const STATUS: Record<SheetStatus, { text: string; css: string }> = {
   queued: { text: 'Queued', css: 'text-slate-700 dark:text-slate-300' },
@@ -35,7 +35,7 @@ const VERDICT: Record<QuestionVerdict, { icon: string; text: string; css: string
       class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
       <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="results-heading" class="text-base font-bold text-slate-900 dark:text-white">Class results</h2>
+        <h2 id="results-heading" class="text-base font-bold text-slate-900 dark:text-white">{{ heading() }}</h2>
         <p class="text-xs text-slate-600 dark:text-slate-300">
           {{ finished() }} of {{ sheets().length }} papers graded · open a student to review and approve
         </p>
@@ -96,7 +96,7 @@ const VERDICT: Record<QuestionVerdict, { icon: string; text: string; css: string
                       </span>
                       @if (r.teacherOverride !== undefined) {
                         <span class="block text-[10px] text-indigo-800 dark:text-indigo-300">edited</span>
-                      } @else if (r.confidence < threshold) {
+                      } @else if (flaggedAnswer(r)) {
                         <span class="block text-[10px] text-amber-800 dark:text-amber-300">⚠ check</span>
                       }
                     } @else {
@@ -124,13 +124,14 @@ const VERDICT: Record<QuestionVerdict, { icon: string; text: string; css: string
   `,
 })
 export class ClassResultsTableComponent {
+  readonly heading = input('Class results');
   readonly sheets = input.required<ISheetEvaluation[]>();
   readonly scheme = input<IMarkingScheme | null>(null);
   readonly activeId = input<string | null>(null);
 
   readonly open = output<string>();
 
-  protected readonly threshold = REVIEW_CONFIDENCE_THRESHOLD;
+  protected readonly flaggedAnswer = isAnswerFlagged;
   protected readonly finished = computed(
     () => this.sheets().filter((s) => !['queued', 'grading'].includes(s.status)).length,
   );
@@ -161,7 +162,7 @@ export class ClassResultsTableComponent {
   }
 
   protected flagged(sheet: ISheetEvaluation): string {
-    const n = sheet.questions.filter((q) => q.confidence < this.threshold && q.teacherOverride === undefined).length;
+    const n = sheet.questions.filter(isAnswerFlagged).length;
     return n ? `⚠ ${n}` : '—';
   }
 }

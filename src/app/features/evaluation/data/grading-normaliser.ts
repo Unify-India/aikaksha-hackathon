@@ -108,11 +108,19 @@ export function normaliseGrading(
   return { questions, ocrConfidence: clamp(num(raw.ocrConfidence, 0.5), 0, 1) };
 }
 
+/** "SECTION – A" / "Sec. B" / "Part C" / "A" → "A"; anything else → up to 3 letters/digits. */
+export function sectionLetter(raw: string | null | undefined): string {
+  const text = (raw ?? '').trim().toUpperCase();
+  const match = text.match(/^(?:SECTION|SEC\.?|PART)\s*[-–—:.]?\s*([A-Z0-9]{1,3})\b/);
+  if (match) return match[1];
+  return text.replace(/[^A-Z0-9]/g, '').slice(0, 3);
+}
+
 /** Turns Gemini's drafted scheme into a valid IMarkingScheme (ids, step totals, option letters). */
 export function normaliseDraftScheme(raw: IRawDraftScheme, id: string, questionPaperChecksum: string): IMarkingScheme {
   const seen = new Set<string>();
   const questions: IMarkingSchemeQuestion[] = (raw.questions ?? []).map((q, index) => {
-    const section = (q.section ?? '').trim().toUpperCase().slice(0, 3);
+    const section = sectionLetter(q.section);
     const number = String(q.number ?? index + 1).trim() || String(index + 1);
     let qid = `${section}${number}`.replace(/[^A-Za-z0-9]/g, '') || `Q${index + 1}`;
     while (seen.has(qid)) qid = `${qid}_`;
@@ -162,7 +170,7 @@ export function normaliseDraftScheme(raw: IRawDraftScheme, id: string, questionP
     classLevel: raw.classLevel?.trim() || undefined,
     source: 'question_paper',
     questionPaperChecksum,
-    status: 'draft',
+    status: 'pending',
     totalMarks: questions.reduce((sum, q) => sum + q.maxMarks, 0),
     questions,
   };

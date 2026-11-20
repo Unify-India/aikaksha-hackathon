@@ -24,11 +24,13 @@ export const routes: Routes = [
   },
   {
     path: 'review-gate',
+    // Review Gate now lists low-confidence (< 90%) graded answers for teacher approval.
+    // The earlier exam-publishing mock-up (features/exam-studio/review-gate.component.ts) is kept, unused.
     loadComponent: () =>
-      import('./features/exam-studio/review-gate.component').then(
-        (m) => m.ReviewGateComponent
+      import('./features/evaluation/review-gate/answer-review-gate.component').then(
+        (m) => m.AnswerReviewGateComponent
       ),
-    title: 'Teacher Review Gate | AI Kaksha',
+    title: 'Review Gate | AI Kaksha',
   },
   {
     path: 'evaluation',

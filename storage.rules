@@ -41,6 +41,22 @@ service firebase.storage {
         && request.resource.contentType.matches('(image/.*|application/pdf)');
     }
 
+    // Workflow B — question paper and answer sheet PDFs (renamed; never the student's name in the path).
+    // ⚠ HACKATHON POC: OPEN ACCESS WITHOUT LOGIN, PDFs only, max 30 MB, no deletes.
+    // Switches itself OFF on 2026-12-20 (cost/abuse safety). Lock down once the app uses Firebase Auth.
+    match /question_papers/{paperId}/{fileName} {
+      allow read: if request.time < timestamp.date(2026, 12, 20);
+      allow create, update: if request.time < timestamp.date(2026, 12, 20)
+        && request.resource.size < 30 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+    match /question_papers/{paperId}/answer_sheets/{fileName} {
+      allow read: if request.time < timestamp.date(2026, 12, 20);
+      allow create, update: if request.time < timestamp.date(2026, 12, 20)
+        && request.resource.size < 30 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+
     // Default fallback deny
     match /{allPaths=**} {
       allow read, write: if false;

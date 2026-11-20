@@ -10,15 +10,15 @@ import {
 import { sha256Hex } from './checksum';
 import type {
   EvaluationBackend,
+  IGradingOptions,
   IStartedJob,
   IUploadSheet,
   RunEventHandler,
 } from './evaluation-backend';
 import { SAMPLE_MATHS_SCHEME, SAMPLE_WORKFLOW_A_SCHEME } from './evaluation-fixtures.testing';
 import { pagesSummary } from './pages-summary';
-import { summariseSheet } from './sheet-summary';
+import { isAnswerFlagged, summariseSheet } from './sheet-summary';
 
-const REVIEW_THRESHOLD = 0.7;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -38,6 +38,8 @@ function seededRandom(seedHex: string): () => number {
  * deterministic fake marks. Never provided in the app — specs inject it via EVALUATION_BACKEND.
  */
 export class FakeEvaluationBackend implements EvaluationBackend {
+  /** Options passed to the last startGrading call (lets specs check the teacher examples). */
+  lastOptions?: IGradingOptions;
   private schemes: IMarkingScheme[] = [SAMPLE_MATHS_SCHEME, SAMPLE_WORKFLOW_A_SCHEME];
   private sheets = new Map<string, ISheetEvaluation>();
   private nextId = 1;
@@ -47,16 +49,27 @@ export class FakeEvaluationBackend implements EvaluationBackend {
     return structuredClone(this.schemes);
   }
 
-  async draftScheme(questionPaper: File, onEvent: RunEventHandler): Promise<IMarkingScheme> {
+  async draftScheme(questionPaper: File, onEvent: RunEventHandler, signal?: AbortSignal): Promise<IMarkingScheme> {
     const started = Date.now();
     onEvent({ type: 'tool_started', tool: 'draft_marking_scheme', at: started });
     const checksum = await sha256Hex(questionPaper);
-    await wait(2500);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, 2500);
+        signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        }, { once: true });
+      });
+    } catch (e) {
+      onEvent({ type: 'tool_failed', tool: 'draft_marking_scheme', error: 'Cancelled by the teacher' });
+      throw e;
+    }
     const draft: IMarkingScheme = {
       ...structuredClone(SAMPLE_MATHS_SCHEME),
       id: `scheme-draft-${this.nextId++}`,
       title: `Draft scheme — ${questionPaper.name.replace(/\.[^.]+$/, '')}`,
-      status: 'draft',
+      status: 'pending',
       questionPaperChecksum: checksum,
     };
     this.schemes = [...this.schemes, draft];
@@ -78,16 +91,17 @@ export class FakeEvaluationBackend implements EvaluationBackend {
   }
 
   async startGrading(
-    schemeId: string,
+    scheme: IMarkingScheme,
     uploads: IUploadSheet[],
     onEvent: RunEventHandler,
+    options?: IGradingOptions,
   ): Promise<IStartedJob> {
-    const scheme = this.schemes.find((s) => s.id === schemeId);
-    if (!scheme) throw new Error(`Unknown marking scheme ${schemeId}`);
+    this.lastOptions = options;
+    const schemeId = scheme.id;
 
     const jobId = `job-${this.nextId++}`;
     const sheets: ISheetEvaluation[] = uploads.map((upload) => ({
-      submissionId: `sub-${this.nextId++}`,
+      submissionId: upload.submissionId ?? `sub-${this.nextId++}`,
       jobId,
       schemeId,
       studentLabel: upload.studentLabel,
@@ -184,7 +198,7 @@ export class FakeEvaluationBackend implements EvaluationBackend {
     const flagStarted = Date.now();
     onEvent({ type: 'tool_started', tool: 'flag_for_review', submissionId, at: flagStarted });
     await wait(300);
-    const flagged = questions.filter((q) => q.confidence < REVIEW_THRESHOLD).length;
+    const flagged = questions.filter(isAnswerFlagged).length;
     current = { ...current, status: current.needsReview ? 'needs_review' : 'graded' };
     onEvent({
       type: 'tool_finished',

@@ -14,7 +14,7 @@ export const DRAFT_SCHEME_SYSTEM = `You are a senior examiner who writes marking
 You will receive a question paper (PDF or photo). Produce a complete, correct marking scheme.
 
 Rules:
-- Include EVERY question on the paper, in paper order. Use the section letter (A, B, C, …) printed on the paper; if there are no sections use "".
+- Include EVERY question on the paper, in paper order. "section" is ONLY the section letter printed on the paper (e.g. "A" for "SECTION – A"); if there are no sections use "".
 - "number" is the question number exactly as printed (e.g. "8", "2"). If a question has parts (i)/(ii), keep it as ONE question and cover the parts in the steps.
 - "maxMarks" comes from the paper (section headers like "1 Mark Each"). If a header gives a choice such as "3/4 Marks Each", use the larger value.
 - Multiple-choice questions: type "mcq", "correctOption" is the option letter in lowercase (a, b, c or d), and "steps" is empty. Solve the question yourself — do not guess.
@@ -88,10 +88,10 @@ How to grade:
 5. "studentAnswer": a short transcription (max ~200 characters) of what the student wrote, in plain text with Unicode maths symbols.
 6. "feedback": one or two sentences for the teacher explaining the marks.
 7. "evidence": where the answer is on the sheet — page number (1-based, as in the file) and box_2d = [ymin, xmin, ymax, xmax] scaled 0–1000 relative to that page, covering the student's answer. Add one entry per page if an answer continues onto another page. Use [] if the question was not attempted.
-8. "confidence" (0–1): how sure you are about both reading the handwriting and the marks. Use below 0.7 if handwriting is unclear, the answer is hard to locate, or the marking is borderline.
+8. "confidence" (0–1): how sure you are about both reading the handwriting and the marks. Use below 0.9 if handwriting is unclear, the answer is hard to locate, or the marking is borderline — anything below 0.9 is sent to the teacher for review.
 9. Return exactly one result for EVERY questionId in the scheme. If you cannot find an answer, set attempted=false.`;
 
-export function gradeSheetPrompt(scheme: IMarkingScheme, pageCount: number): string {
+export function gradeSheetPrompt(scheme: IMarkingScheme, pageCount: number, teacherExamples = ''): string {
   const compact = scheme.questions.map((q) => ({
     questionId: q.id,
     section: q.section ?? '',
@@ -107,6 +107,7 @@ export function gradeSheetPrompt(scheme: IMarkingScheme, pageCount: number): str
     `Subject: ${scheme.subject}${scheme.classLevel ? `, class ${scheme.classLevel}` : ''}. The answer sheet has ${pageCount} page(s).`,
     'Marking scheme (JSON):',
     JSON.stringify(compact),
+    ...(teacherExamples ? [teacherExamples] : []),
     'Grade the attached answer sheet now.',
   ].join('\n');
 }

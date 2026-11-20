@@ -2,7 +2,8 @@ import { Service, inject } from '@angular/core';
 import { GeminiPart, GeminiService } from '../../../core/services/ai/gemini.service';
 import { IGradingJob, IMarkingScheme, ISheetEvaluation } from '../models/evaluation.models';
 import { sha256Hex } from './checksum';
-import type { EvaluationBackend, IStartedJob, IUploadSheet, RunEventHandler } from './evaluation-backend';
+import type { EvaluationBackend, IGradingOptions, IStartedJob, IUploadSheet, RunEventHandler } from './evaluation-backend';
+import { teacherExamplesPrompt } from './teacher-feedback';
 import {
   DRAFT_SCHEME_RESPONSE,
   DRAFT_SCHEME_SYSTEM,
@@ -14,7 +15,7 @@ import {
 } from './gemini-prompts';
 import { normaliseDraftScheme, normaliseGrading } from './grading-normaliser';
 import { pagesSummary } from './pages-summary';
-import { REVIEW_CONFIDENCE_THRESHOLD, summariseSheet } from './sheet-summary';
+import { isAnswerFlagged, summariseSheet } from './sheet-summary';
 
 /** "Thinking" tokens per sheet: enough to check working step by step, low enough to stay quick. */
 const GRADING_THINKING_BUDGET = 2048;
@@ -26,32 +27,32 @@ const GRADING_THINKING_BUDGET = 2048;
 @Service()
 export class GeminiEvaluationBackend implements EvaluationBackend {
   private readonly gemini = inject(GeminiService);
-  private schemes: IMarkingScheme[] = [];
   private sheets = new Map<string, ISheetEvaluation>();
-  private nextId = 1;
 
+  /** Schemes are stored in Firebase by the store; this backend keeps none of its own. */
   async listSchemes(): Promise<IMarkingScheme[]> {
-    return structuredClone(this.schemes);
+    return [];
   }
 
-  async draftScheme(questionPaper: File, onEvent: RunEventHandler): Promise<IMarkingScheme> {
+  async draftScheme(questionPaper: File, onEvent: RunEventHandler, signal?: AbortSignal): Promise<IMarkingScheme> {
     const started = Date.now();
     onEvent({ type: 'tool_started', tool: 'draft_marking_scheme', at: started });
     try {
       const [checksum, filePart] = await Promise.all([
         sha256Hex(questionPaper),
-        this.gemini.fileToPart(questionPaper, questionPaper.type, 'question-paper'),
+        this.gemini.fileToPart(questionPaper, questionPaper.type, 'question-paper', signal),
       ]);
       const raw = await this.gemini.generateJson<IRawDraftScheme>({
         systemInstruction: DRAFT_SCHEME_SYSTEM,
         parts: [filePart, { text: 'Write the marking scheme for this question paper.' }],
         responseSchema: DRAFT_SCHEME_RESPONSE,
         thinkingBudget: 8192,
+        signal,
       });
+      signal?.throwIfAborted();
       const draft = normaliseDraftScheme(raw, `scheme-draft-${Date.now()}`, checksum);
       if (draft.questions.length === 0) throw new Error('Gemini found no questions in this file.');
 
-      this.schemes = [...this.schemes, draft];
       onEvent({ type: 'scheme_drafted', scheme: structuredClone(draft) });
       onEvent({
         type: 'tool_finished',
@@ -61,24 +62,27 @@ export class GeminiEvaluationBackend implements EvaluationBackend {
       });
       return structuredClone(draft);
     } catch (e) {
-      onEvent({ type: 'tool_failed', tool: 'draft_marking_scheme', error: errorText(e) });
+      const error = signal?.aborted ? 'Cancelled by the teacher' : errorText(e);
+      onEvent({ type: 'tool_failed', tool: 'draft_marking_scheme', error });
       throw e;
     }
   }
 
   async approveScheme(scheme: IMarkingScheme): Promise<IMarkingScheme> {
-    const approved: IMarkingScheme = { ...structuredClone(scheme), status: 'approved' };
-    this.schemes = this.schemes.map((s) => (s.id === scheme.id ? approved : s));
-    return structuredClone(approved);
+    return { ...structuredClone(scheme), status: 'approved' };
   }
 
-  async startGrading(schemeId: string, uploads: IUploadSheet[], onEvent: RunEventHandler): Promise<IStartedJob> {
-    const scheme = this.schemes.find((s) => s.id === schemeId);
-    if (!scheme) throw new Error(`Unknown marking scheme ${schemeId}`);
-
-    const jobId = `job-${Date.now()}`;
-    const sheets: ISheetEvaluation[] = uploads.map((upload) => ({
-      submissionId: `sub-${this.nextId++}`,
+  async startGrading(
+    scheme: IMarkingScheme,
+    uploads: IUploadSheet[],
+    onEvent: RunEventHandler,
+    options?: IGradingOptions,
+  ): Promise<IStartedJob> {
+    const examples = teacherExamplesPrompt(options?.teacherExamples ?? []);
+    const schemeId = scheme.id;
+    const jobId = `job-${Date.now().toString(36)}`;
+    const sheets: ISheetEvaluation[] = uploads.map((upload, i) => ({
+      submissionId: upload.submissionId ?? `${jobId}-${i + 1}`,
       jobId,
       schemeId,
       studentLabel: upload.studentLabel,
@@ -100,7 +104,7 @@ export class GeminiEvaluationBackend implements EvaluationBackend {
       await delay(50); // let the caller store the job before the first event arrives
       // Queue: one paper at a time; each result is published as soon as it is ready.
       for (const [i, sheet] of sheets.entries()) {
-        await this.gradeOne(sheet, uploads[i], scheme, onEvent);
+        await this.gradeOne(sheet, uploads[i], scheme, onEvent, examples);
       }
       onEvent({ type: 'run_completed', jobId });
     })();
@@ -126,6 +130,7 @@ export class GeminiEvaluationBackend implements EvaluationBackend {
     upload: IUploadSheet,
     scheme: IMarkingScheme,
     onEvent: RunEventHandler,
+    teacherExamples = '',
   ): Promise<void> {
     const { submissionId } = sheet;
     let current: ISheetEvaluation = { ...sheet, status: 'grading' };
@@ -162,7 +167,7 @@ export class GeminiEvaluationBackend implements EvaluationBackend {
       }
       const raw = await this.gemini.generateJson<IRawGrading>({
         systemInstruction: GRADE_SHEET_SYSTEM,
-        parts: [{ text: gradeSheetPrompt(scheme, pages.length) }, ...pageParts],
+        parts: [{ text: gradeSheetPrompt(scheme, pages.length, teacherExamples) }, ...pageParts],
         responseSchema: GRADE_SHEET_RESPONSE,
         thinkingBudget: GRADING_THINKING_BUDGET,
       });
@@ -184,7 +189,7 @@ export class GeminiEvaluationBackend implements EvaluationBackend {
 
     const flagStarted = Date.now();
     onEvent({ type: 'tool_started', tool: 'flag_for_review', submissionId, at: flagStarted });
-    const flagged = current.questions.filter((q) => q.confidence < REVIEW_CONFIDENCE_THRESHOLD).length;
+    const flagged = current.questions.filter(isAnswerFlagged).length;
     current = { ...current, status: current.needsReview ? 'needs_review' : 'graded' };
     onEvent({
       type: 'tool_finished',

@@ -22,7 +22,7 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
       <div class="mt-4">
         <app-file-drop-zone
           label="Add answer sheets"
-          hint="PDF files, one per student · up to 50 MB each · names are hidden"
+          hint="PDF files, one per student · up to 30 MB each · names are hidden"
           accept="application/pdf"
           [multiple]="true"
           [disabled]="disabled()"
@@ -94,7 +94,7 @@ export class SheetUploadComponent {
   protected add(incoming: File[]): void {
     const problems = incoming.map(validateSheetFile).filter((p): p is string => p !== null);
     // Problems mention the original file name; show only a count so student names stay hidden.
-    this.rejected.set(problems.length ? [`${problems.length} file(s) skipped: only PDF files up to 50 MB.`] : []);
+    this.rejected.set(problems.length ? [`${problems.length} file(s) skipped: only PDF files up to 30 MB.`] : []);
     const accepted = incoming.filter((f) => validateSheetFile(f) === null);
     this.files.update((list) => [...list, ...accepted]);
   }
