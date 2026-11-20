@@ -11,7 +11,15 @@ if (admin.apps.length === 0) {
 }
 
 export const db = admin.firestore();
-export const rtdb = admin.database();
+
+let _rtdb: admin.database.Database | undefined;
+try {
+  _rtdb = admin.database();
+} catch {
+  // Realtime Database URL not specified in environment
+}
+export const rtdb = _rtdb as admin.database.Database;
+
 export const auth = admin.auth();
 export const storage = admin.storage();
 

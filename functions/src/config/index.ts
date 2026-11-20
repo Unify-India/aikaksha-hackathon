@@ -1,4 +1,4 @@
-export const DEPLOYMENT_REGION = 'us-central1';
+export const DEPLOYMENT_REGION = 'asia-south1';
 
 export const FIRESTORE_COLLECTIONS = {
   USERS: 'users',
