@@ -2,9 +2,13 @@ import * as crypto from 'crypto';
 import * as logger from 'firebase-functions/logger';
 import { db } from '../../config/firebase.js';
 import { FIRESTORE_COLLECTIONS } from '../../config/index.js';
-import type { IExam, IExamQuestion, IOption, ExamStatus } from '../../types/index.js';
+import type { IBaseQuestion, IExam, IExamQuestion, IOption, ExamStatus } from '../../types/index.js';
 import { stripForStudent, sha256Canonical } from '../../utils/security.js';
 import { resolveKolkataTimeWindow } from '../../utils/time.js';
+import { generateQuestions, type Difficulty } from '../../prompts/question-generation.prompt.js';
+import { auditQuestions, summariseAudit } from '../../prompts/solver-audit.prompt.js';
+import { buildAutoDppIntent, DPP_QUESTION_COUNT } from '../../prompts/auto-dpp.prompt.js';
+import { negativeMarksFor, type NegativeRule } from '../../types/voice-intent.js';
 
 export interface ResolveTeacherContextResult {
   teacherId: string;
@@ -48,6 +52,8 @@ export interface GenerateQuestionsInput {
   examId: string;
   subject: string;
   topic?: string;
+  /** Optional subtopics, one per batch of ≤5. Empty -> Gemini plans them. */
+  subtopics?: string[];
   count: number;
   difficulty?: string;
   languages?: string[];
@@ -57,6 +63,8 @@ export interface GenerateQuestionsInput {
 export interface GenerateQuestionsResult {
   examId: string;
   generatedCount: number;
+  /** How many were asked for; generatedCount < requestedCount means some were dropped (shortfall). */
+  requestedCount?: number;
   requestId?: string;
   questions: Array<Omit<IExamQuestion, 'correctOptionId' | 'answer' | 'explanation'>>;
 }
@@ -91,10 +99,14 @@ export interface FinalizeAndPublishExamResult {
 }
 
 export interface CreateAutoDppInput {
-  topic: string;
+  /** What the teacher taught, e.g. "Taught projectile motion at an angle — Class 12 JEE". Preferred. */
+  sentence?: string;
+  /** Plain topic; used when no sentence is given. */
+  topic?: string;
   batchId?: string;
   subject?: string;
   count?: number;
+  difficulty?: string;
   requestId?: string;
 }
 
@@ -102,10 +114,15 @@ export interface CreateAutoDppResult {
   examId: string;
   title: string;
   topic: string;
+  subtopic?: string;
   batchId: string;
+  /** 'upcoming' when published; 'draft' when the audit flagged questions and a teacher must review. */
   status: 'upcoming' | 'draft';
+  published: boolean;
   totalQuestions: number;
   totalMarks: number;
+  auditScore: number;
+  auditFlags: string[];
   contentHash: string;
   confirmationToken: string;
 }
@@ -267,49 +284,36 @@ export async function generateAndAttachQuestions(
   }
 
   const questionCount = Math.min(Math.max(1, count), 15);
-  const generatedList: IExamQuestion[] = [];
 
-  const physicsTopics = [
-    'Coulomb Law and Electric Field',
-    'Electric Potential and Potential Energy',
-    'Capacitors and Dielectric Breakdown',
-    'Kirchhoff Current and Voltage Laws',
-    'Drift Velocity and Ohm Law in Microscopic View',
-  ];
+  // Real Gemini generation: parallel batches of ≤5, validated and de-duplicated.
+  const generated = await generateQuestions({
+    subject,
+    topic,
+    subtopics: input.subtopics ?? [],
+    count: questionCount,
+    difficulty: toDifficulty(input.difficulty),
+    marks: examData.defaultMarks || 4,
+    negativeMarks: examData.defaultNegativeMarks ?? 1,
+    ...(examData.examPattern && { examPattern: examData.examPattern }),
+    ...(examData.class && { classLevel: examData.class }),
+  });
 
-  for (let i = 1; i <= questionCount; i++) {
-    const qId = `q_${examId.slice(-4)}_${i}`;
-    const subTopic = topic || physicsTopics[(i - 1) % physicsTopics.length];
-    
-    generatedList.push({
-      id: qId,
-      type: 'MCQ',
-      marks: examData.defaultMarks || 4,
-      negativeMarks: examData.defaultNegativeMarks || 1,
-      subject,
-      topic: subTopic,
-      difficulty: input.difficulty || 'medium',
-      teacherId,
-      en: {
-        text: `A parallel plate capacitor with plate area $A$ and separation $d$ has capacitance $C_0$. If a dielectric slab of dielectric constant $K=4$ and thickness $t = d/2$ is inserted, what is the new capacitance $C$?`,
-        options: [
-          { id: 'opt1', text: '$\\frac{8}{5} C_0$' },
-          { id: 'opt2', text: '$\\frac{5}{8} C_0$' },
-          { id: 'opt3', text: '$\\frac{4}{3} C_0$' },
-          { id: 'opt4', text: '$2 C_0$' },
-        ],
-      },
-      correctOptionId: 'opt1',
-      explanation: {
-        en: `Using $C = \\frac{\\varepsilon_0 A}{d - t + t/K}$ with $t = d/2$ and $K=4$: $d - d/2 + d/8 = 5d/8$. Therefore $C = \\frac{8}{5} \\frac{\\varepsilon_0 A}{d} = \\frac{8}{5} C_0$.`,
-      },
-    });
+  if (generated.length === 0) {
+    throw new Error('GENERATION_FAILED: Gemini produced no valid questions; please retry');
   }
+  if (generated.length < questionCount) {
+    logger.warn(`Question shortfall for exam ${examId}: ${generated.length}/${questionCount}`);
+  }
+
+  const generatedList: IExamQuestion[] = generated.map((q) => ({ ...q, teacherId, examId }));
 
   // Atomically persist draft questions in Firestore
   const batch = db.batch();
 
-  // Clear or set draft questions subcollection
+  // Clear old drafts first so a regenerate with fewer questions leaves no stale ones behind
+  const oldDrafts = await masterRef.collection('draft_questions').get();
+  for (const doc of oldDrafts.docs) batch.delete(doc.ref);
+
   for (const q of generatedList) {
     const qRef = masterRef.collection('draft_questions').doc(q.id!);
     batch.set(qRef, q);
@@ -330,9 +334,17 @@ export async function generateAndAttachQuestions(
   return {
     examId,
     generatedCount: generatedList.length,
+    requestedCount: questionCount,
     requestId,
     questions: generatedList.map((q) => stripForStudent(q)),
   };
+}
+
+function toDifficulty(value: string | undefined): Difficulty {
+  const v = (value ?? '').toLowerCase();
+  if (v === 'easy') return 'easy';
+  if (v === 'hard' || v === 'tough' || v === 'difficult') return 'hard';
+  return 'medium';
 }
 
 /**
@@ -369,25 +381,38 @@ export async function auditQuestionBatch(
   const strippedQuestions = questions.map((q) => stripForStudent(q));
   const contentHash = sha256Canonical(strippedQuestions);
 
-  // Generate single-use confirmation token
+  // Blind solver pass: Gemini sees only the stripped questions, never the key.
+  // (stripForStudent's Omit<> type loses field types because of IBaseQuestion's index signature;
+  // the runtime shape is a question minus the key, which auditQuestions re-checks with assertBlind.)
+  const auditItems = await auditQuestions(strippedQuestions as IBaseQuestion[]);
+  const keyById = new Map(questions.map((q) => [q.id ?? '', q.correctOptionId]));
+  const { score, flags, details } = summariseAudit(auditItems, keyById);
+  const passed = flags.length === 0;
+
+  // Generate single-use confirmation token. Issued even when flagged:
+  // the teacher sees the flags at the Review Gate and decides.
   const confirmationToken = `conf_${crypto.randomBytes(16).toString('hex')}`;
 
   // Store token and expected hash on master exam doc for validation at publish time
   await masterRef.update({
     draftHash: contentHash,
     confirmationToken,
-    auditScore: 100,
-    auditStatus: 'PASSED',
+    auditScore: score,
+    auditStatus: passed ? 'PASSED' : 'FLAGGED',
+    auditFlags: flags,
+    auditDetails: details,
     updatedAt: new Date().toISOString(),
   });
 
-  logger.info(`Audited exam ${examId}: contentHash=${contentHash.slice(0, 8)}..., token=${confirmationToken.slice(0, 10)}...`);
+  logger.info(
+    `Audited exam ${examId}: score=${score}, flags=${flags.length}, contentHash=${contentHash.slice(0, 8)}..., token=${confirmationToken.slice(0, 10)}...`,
+  );
 
   return {
     examId,
-    score: 100,
-    passed: true,
-    flags: [],
+    score,
+    passed,
+    flags,
     contentHash,
     confirmationToken,
     questionCount: questions.length,
@@ -508,17 +533,40 @@ export async function finalizeAndPublishExam(
 /**
  * Tool 6: create_auto_dpp
  * Autonomous Daily Practice Problem creation pipeline:
- * Generates 10 targeted practice questions, audits them, and creates an upcoming practice exam.
+ * From the teacher's sentence ("Taught projectile motion at an angle — Class 12 JEE"), Gemini maps the
+ * lesson to the syllabus (buildAutoDppIntent), then 10 questions are generated and blind-audited.
+ * Published automatically only if the audit passes; otherwise left as a draft for the teacher to review.
  */
 export async function createAutoDpp(
   teacherId: string,
   input: CreateAutoDppInput,
 ): Promise<CreateAutoDppResult> {
-  const { topic, batchId = 'batch-lakshya-2026', subject = 'Physics', count = 10, requestId } = input;
+  const { batchId = 'batch-lakshya-2026', requestId } = input;
 
+  // Step 0: understand what was taught (sentence preferred; plain topic still accepted)
+  let subject = input.subject ?? 'Physics';
+  let topic = input.topic?.trim() ?? '';
+  let subtopic: string | undefined;
+  let examPattern: string | undefined;
+  let difficulty = input.difficulty;
+  let negativeRule: NegativeRule = '1/4';
+  if (input.sentence?.trim()) {
+    const intent = await buildAutoDppIntent(input.sentence, batchId);
+    const s = intent.extractedSlots;
+    subject = input.subject ?? s.subject ?? subject;
+    topic = s.topic ?? topic;
+    subtopic = s.subtopic;
+    examPattern = s.examPattern;
+    difficulty = difficulty ?? s.difficulty;
+    negativeRule = s.negativeRule ?? 'none';
+  }
+  if (!topic) throw new Error('Auto DPP needs a sentence or a topic');
+
+  const count = Math.min(Math.max(1, input.count ?? DPP_QUESTION_COUNT), 15);
+  const marks = 4;
   const now = new Date();
-  const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-  const title = `Auto DPP: ${topic} (${dateStr})`;
+  const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' });
+  const title = `DPP: ${subtopic ?? topic} (${dateStr})`;
 
   // Step 1: Create Draft Exam
   const examResult = await createExam(teacherId, {
@@ -527,32 +575,37 @@ export async function createAutoDpp(
     duration: 30,
     batchId,
     targetQuestions: count,
-    defaultMarks: 4,
-    defaultNegativeMarks: 1,
-    examPattern: 'NEET Practice',
+    defaultMarks: marks,
+    defaultNegativeMarks: negativeMarksFor(marks, negativeRule),
+    examPattern: examPattern ?? 'Practice',
   });
 
   const examId = examResult.examId;
 
   // Step 2: Generate & Attach Questions
-  await generateAndAttachQuestions(teacherId, {
+  const generated = await generateAndAttachQuestions(teacherId, {
     examId,
     subject,
     topic,
+    ...(subtopic && { subtopics: [subtopic] }),
     count,
+    ...(difficulty && { difficulty }),
     requestId,
   });
 
   // Step 3: Solver Audit Pass
   const auditResult = await auditQuestionBatch(teacherId, { examId });
 
-  // Step 4: Publish DPP
-  await finalizeAndPublishExam(teacherId, {
-    examId,
-    confirmationToken: auditResult.confirmationToken,
-    contentHash: auditResult.contentHash,
-    status: 'upcoming',
-  });
+  // Step 4: Publish only if the audit is clean; flagged sets wait for teacher review.
+  const published = auditResult.passed;
+  if (published) {
+    await finalizeAndPublishExam(teacherId, {
+      examId,
+      confirmationToken: auditResult.confirmationToken,
+      contentHash: auditResult.contentHash,
+      status: 'upcoming',
+    });
+  }
 
   // Log to teaching_log collection as specified in IMPLEMENTATION_PLAN.md
   await db.collection('teaching_log').add({
@@ -560,20 +613,26 @@ export async function createAutoDpp(
     examId,
     teacherId,
     topic,
+    ...(subtopic && { subtopic }),
     batchId,
+    published,
     createdAt: new Date().toISOString(),
   });
 
-  logger.info(`Auto DPP created and published: ${examId} for topic "${topic}"`);
+  logger.info(`Auto DPP ${published ? 'published' : 'held for review'}: ${examId} for "${subtopic ?? topic}" (score ${auditResult.score})`);
 
   return {
     examId,
     title,
     topic,
+    ...(subtopic && { subtopic }),
     batchId,
-    status: 'upcoming',
-    totalQuestions: count,
-    totalMarks: count * 4,
+    status: published ? 'upcoming' : 'draft',
+    published,
+    totalQuestions: generated.generatedCount,
+    totalMarks: generated.generatedCount * marks,
+    auditScore: auditResult.score,
+    auditFlags: auditResult.flags,
     contentHash: auditResult.contentHash,
     confirmationToken: auditResult.confirmationToken,
   };

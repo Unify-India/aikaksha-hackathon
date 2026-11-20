@@ -21,6 +21,9 @@ import {
   createAutoDpp,
   createAndSegregateExam,
 } from './modules/exams/examTools.js';
+import { understandTeacherRequest } from './modules/workflows/understand.js';
+import { getTeacherDraft } from './modules/exams/teacherDraft.js';
+import { handleMcpRequest, mcpMethodNotAllowed } from './modules/mcp/mcpServer.js';
 
 // Auto-seed Firestore collections on cold start
 seedFirestoreDatabase().catch((err) => {
@@ -110,6 +113,39 @@ apiApp.post('/api/tools/finalize_and_publish_exam', authMiddleware, async (req, 
   }
 });
 
+// Real MCP server (Streamable HTTP): connect Gemini CLI / MCP Inspector / Claude to {base}/mcp
+apiApp.post('/mcp', authMiddleware, handleMcpRequest);
+apiApp.get('/mcp', mcpMethodNotAllowed);
+apiApp.delete('/mcp', mcpMethodNotAllowed);
+
+// Teacher-only draft view (questions WITH keys + audit flags) for Exam Studio / Review Gate.
+apiApp.get('/api/exams/:examId/draft', authMiddleware, async (req, res) => {
+  try {
+    const teacherId = req.auth?.teacherId || 'teacher-sharma-101';
+    res.json(await getTeacherDraft(teacherId, req.params.examId));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    const status = /not found/i.test(message) ? 404 : /ownership/i.test(message) ? 403 : 500;
+    res.status(status).json({ error: status === 404 ? 'NOT_FOUND' : status === 403 ? 'FORBIDDEN' : 'INTERNAL_ERROR', message });
+  }
+});
+
+// Understand the teacher's sentence (slot chips + follow-up questions) without creating anything.
+apiApp.post('/api/tools/extract_intent', authMiddleware, async (req, res) => {
+  try {
+    const teacherId = req.auth?.teacherId || 'teacher-sharma-101';
+    const transcript = typeof req.body?.transcript === 'string' ? req.body.transcript.trim() : '';
+    if (!transcript) {
+      res.status(400).json({ error: 'INVALID_ARGUMENT', message: 'transcript is required' });
+      return;
+    }
+    res.json(await understandTeacherRequest(teacherId, transcript));
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    res.status(502).json({ error: 'MODEL_ERROR', message: errorMsg });
+  }
+});
+
 apiApp.post('/api/tools/create_auto_dpp', authMiddleware, async (req, res) => {
   try {
     const teacherId = req.auth?.teacherId || 'teacher-sharma-101';
@@ -175,7 +211,7 @@ apiApp.post('/api/tools/create_complete_exam', authMiddleware, async (req, res) 
 // Primary Cloud Function: Express API exported as `api`
 export const api = functions
   .region(DEPLOYMENT_REGION)
-  .runWith({ timeoutSeconds: 300, memory: '1GB' })
+  .runWith({ timeoutSeconds: 300, memory: '1GB', secrets: ['GEMINI_API_KEY', 'DEMO_AUTH_TOKEN'] })
   .https.onRequest(apiApp);
 
 // Exam Triggers
@@ -190,12 +226,14 @@ export { evaluateSubjectiveAnswer };
 // MCP Agent Gateway HTTP API
 export const mcpGateway = functions
   .region(DEPLOYMENT_REGION)
+  .runWith({ timeoutSeconds: 300, memory: '1GB', secrets: ['GEMINI_API_KEY'] }) // real Gemini generation + audit can take 40–110 s
   .https.onRequest(mcpApp);
 
 // Multimodal Evaluation & Prompt exports
 export * from './modules/evaluation/multimodalEvaluator.js';
-export * from './prompts/intentExtraction.prompt.js';
-export * from './prompts/questionGeneration.prompt.js';
-export * from './prompts/solverAudit.prompt.js';
+export * from './prompts/intent-extraction.prompt.js';
+export * from './prompts/auto-dpp.prompt.js';
+export * from './prompts/question-generation.prompt.js';
+export * from './prompts/solver-audit.prompt.js';
 export * from './prompts/subjectiveVision.prompt.js';
 export * from './utils/time.js';
