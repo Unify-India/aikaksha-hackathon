@@ -316,30 +316,27 @@ Below is an authentic, copy-paste ready JSON payload demonstrating realistic NEE
 
 ## 4. Response Contracts
 
-### 4.1 Success Response (`201 Created` or `200 OK`)
+### 4.1 Success Response (`200 OK` / `201 Created`)
 
-When the exam metadata, question items, and answer keys are safely validated and partitioned into Firestore, the server returns a detailed payload:
+When the exam metadata, question items, and answer keys are safely validated and partitioned into Firestore, the server returns the following JSON response:
 
 ```json
 {
   "success": true,
-  "examId": "exam_neet_phy_2026_001",
+  "examId": "exam_1732124700000_a1b2c",
   "totalQuestions": 3,
   "totalMarks": 12,
   "status": "draft",
-  "createdAt": "2026-11-20T17:45:00.000Z",
-  "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "studentUrl": "https://aikaksha.institute.in/student/exams/exam_neet_phy_2026_001",
-  "summary": {
-    "title": "NEET 2026 Physics Sprint: Electrostatics & Gauss's Law",
-    "batchId": "batch-lakshya-neet-2026",
-    "subject": "Physics",
-    "duration": 45,
-    "questionsStored": 3,
-    "answerKeysSecured": 3
-  }
+  "createdAt": "2026-11-20T17:45:00.000Z"
 }
 ```
+
+#### Client-Side Derived Properties
+The Angular `ExamApiService` automatically decorates this response with the shareable student exam URL:
+```typescript
+const studentUrl = `${window.location.origin}/student/exams/${response.examId}`;
+```
+This URL resolves to the student exam taking portal where questions are fetched via `GET /api/student/exams/:examId` with correct answers and explanations securely omitted.
 
 ### 4.2 Error Responses
 
@@ -552,23 +549,18 @@ import {
   IApiErrorResponse,
 } from 'src/app/shared/models/exam-creation.model';
 
-export interface ICreateCompleteExamResponse {
+export interface IRawServerExamResponse {
   success: boolean;
   examId: string;
   totalQuestions: number;
   totalMarks: number;
-  status: 'draft' | 'upcoming';
+  status: string;
   createdAt: string;
-  contentHash: string;
+}
+
+export interface ICreateCompleteExamResponse extends IRawServerExamResponse {
+  status: 'draft' | 'upcoming';
   studentUrl: string;
-  summary?: {
-    title: string;
-    batchId: string;
-    subject: string;
-    duration: number;
-    questionsStored: number;
-    answerKeysSecured: number;
-  };
 }
 
 @Injectable({
@@ -614,12 +606,18 @@ export class ExamApiService {
     });
 
     try {
-      const response = await firstValueFrom(
-        this.http.post<ICreateCompleteExamResponse>(endpoint, payload, { headers })
+      const rawResponse = await firstValueFrom(
+        this.http.post<IRawServerExamResponse>(endpoint, payload, { headers })
       );
 
-      this._lastCreatedExam.set(response);
-      return response;
+      const decoratedResponse: ICreateCompleteExamResponse = {
+        ...rawResponse,
+        status: rawResponse.status === 'draft' ? 'draft' : 'upcoming',
+        studentUrl: `${window.location.origin}/student/exams/${rawResponse.examId}`,
+      };
+
+      this._lastCreatedExam.set(decoratedResponse);
+      return decoratedResponse;
     } catch (err: unknown) {
       let errorMessage = 'Failed to create complete exam. Please try again.';
 
