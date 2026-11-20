@@ -9,7 +9,7 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
   template: `
     <section
       aria-labelledby="scheme-heading"
-      class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      class="lift rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
       <h2 id="scheme-heading" class="text-base font-bold text-slate-900 dark:text-white">
         1. Marking scheme
@@ -24,7 +24,7 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
           @for (scheme of schemes(); track scheme.id) {
             <div class="flex flex-wrap items-center gap-2">
             <label
-              class="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl border p-3 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-indigo-600"
+              class="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-lg border p-3 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-indigo-600"
               [class]="
                 scheme.id === selectedId()
                   ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40'
@@ -79,7 +79,7 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
           <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Awaiting your approval</h3>
           <ul class="mt-2 space-y-2">
             @for (scheme of pending(); track scheme.id) {
-              <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-300 bg-indigo-50/50 p-3 text-sm dark:border-indigo-700 dark:bg-slate-900">
+              <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-300 bg-indigo-50/50 p-3 text-sm dark:border-indigo-700 dark:bg-slate-900">
                 <span class="min-w-0">
                   <span class="block font-semibold text-slate-900 dark:text-white">{{ scheme.title }}</span>
                   <span class="text-xs text-slate-700 dark:text-slate-300">

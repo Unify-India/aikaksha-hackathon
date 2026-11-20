@@ -32,7 +32,7 @@ const VERDICT_LABEL: Record<QuestionVerdict, { icon: string; text: string; css: 
   template: `
     <section
       aria-labelledby="marks-heading"
-      class="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      class="flex h-full flex-col rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
         <h2 id="marks-heading" class="text-base font-bold text-slate-900 dark:text-white">
@@ -75,7 +75,7 @@ const VERDICT_LABEL: Record<QuestionVerdict, { icon: string; text: string; css: 
             @let verdict = verdictLabel(effectiveVerdict(result));
             @let label = questionLabel(question, result.questionId);
             <li
-              class="rounded-xl border text-sm"
+              class="rounded-lg border text-sm"
               [class]="open ? 'border-indigo-500 bg-indigo-50/40 dark:border-indigo-500 dark:bg-indigo-950/30' : isFlagged(result) ? 'border-amber-400 dark:border-amber-700' : 'border-slate-200 dark:border-slate-700'"
             >
               <div class="flex items-center gap-2 p-2.5">

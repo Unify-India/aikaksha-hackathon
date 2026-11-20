@@ -16,7 +16,7 @@ const VERDICT: Record<string, { icon: string; text: string }> = {
   imports: [FormField],
   template: `
     <article
-      class="rounded-2xl border border-amber-300 bg-white dark:border-amber-800 dark:bg-slate-900"
+      class="rounded-lg border border-amber-300 bg-white dark:border-amber-800 dark:bg-slate-900"
       [attr.aria-labelledby]="'card-' + item().key"
     >
       <header class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 dark:border-slate-800">

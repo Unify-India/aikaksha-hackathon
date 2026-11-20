@@ -8,7 +8,7 @@ import { Component, input, output, signal } from '@angular/core';
   selector: 'app-file-drop-zone',
   template: `
     <label
-      class="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-indigo-600 has-[input:focus-visible]:ring-offset-2"
+      class="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-indigo-600 has-[input:focus-visible]:ring-offset-2"
       [class]="
         dragging()
           ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40'
@@ -18,7 +18,9 @@ import { Component, input, output, signal } from '@angular/core';
       (dragleave)="dragging.set(false)"
       (drop)="onDrop($event)"
     >
-      <span aria-hidden="true" class="text-2xl">📄</span>
+      <svg aria-hidden="true" class="h-8 w-8 text-indigo-600 dark:text-indigo-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+      </svg>
       <span class="text-sm font-semibold text-slate-900 dark:text-white">{{ label() }}</span>
       <span class="text-xs text-slate-600 dark:text-slate-300">{{ hint() }}</span>
       <input

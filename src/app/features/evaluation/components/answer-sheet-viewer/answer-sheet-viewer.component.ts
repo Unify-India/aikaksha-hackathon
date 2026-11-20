@@ -46,7 +46,7 @@ const VERDICT_TEXT: Record<QuestionVerdict, string> = {
   template: `
     <section
       aria-labelledby="viewer-heading"
-      class="flex flex-col rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+      class="flex flex-col rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
     >
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-slate-800">
         <h2 id="viewer-heading" class="text-sm font-bold text-slate-900 dark:text-white">

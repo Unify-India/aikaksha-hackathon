@@ -8,7 +8,7 @@ import { ISheetEvaluation } from '../../models/evaluation.models';
     @if (sheet(); as sheet) {
       <section
         aria-label="Sheet summary and approval"
-        class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+        class="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
       >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -41,15 +41,15 @@ import { ISheetEvaluation } from '../../models/evaluation.models';
           </div>
 
           <div class="flex flex-wrap items-center gap-3">
-            <div class="rounded-xl border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
+            <div class="rounded-lg border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
               <span class="block text-[11px] text-slate-600 dark:text-slate-300">Score</span>
               <span class="font-mono text-sm font-bold text-slate-900 dark:text-white">{{ sheet.totalAwarded }} / {{ sheet.totalMax }}</span>
             </div>
-            <div class="rounded-xl border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
+            <div class="rounded-lg border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
               <span class="block text-[11px] text-slate-600 dark:text-slate-300">Handwriting read</span>
               <span class="font-mono text-sm font-bold text-slate-900 dark:text-white">{{ (sheet.ocrConfidence * 100).toFixed(0) }}%</span>
             </div>
-            <div class="rounded-xl border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
+            <div class="rounded-lg border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
               <span class="block text-[11px] text-slate-600 dark:text-slate-300">Overrides</span>
               <span class="font-mono text-sm font-bold text-slate-900 dark:text-white">{{ overrides() }}</span>
             </div>
