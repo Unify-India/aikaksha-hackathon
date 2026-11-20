@@ -1,7 +1,6 @@
 import { Component, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppButtonComponent } from '../../../../shared/components/app-button/app-button.component';
-import { StatusBadgeComponent } from '../../../../shared/components/status-badge.component';
 
 export interface IRubricItem {
   id: string;
@@ -20,7 +19,7 @@ export interface IRubricItem {
 @Component({
   selector: 'app-rubric-score-panel',
   standalone: true,
-  imports: [CommonModule, AppButtonComponent, StatusBadgeComponent],
+  imports: [CommonModule, AppButtonComponent],
   template: `
     <div class="flex flex-col h-full rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
       <!-- Panel Header -->

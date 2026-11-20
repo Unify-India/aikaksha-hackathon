@@ -1,7 +1,5 @@
 import { Component, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AppButtonComponent } from '../../../../shared/components/app-button/app-button.component';
-import { StatusBadgeComponent } from '../../../../shared/components/status-badge.component';
 
 export interface IAnnotationMarker {
   id: string;
@@ -16,7 +14,7 @@ export interface IAnnotationMarker {
 @Component({
   selector: 'app-answer-sheet-viewer',
   standalone: true,
-  imports: [CommonModule, AppButtonComponent, StatusBadgeComponent],
+  imports: [CommonModule],
   template: `
     <div class="flex flex-col rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
       <!-- Toolbar Header -->
@@ -25,7 +23,10 @@ export interface IAnnotationMarker {
           <span class="text-sm font-bold text-slate-900 dark:text-white">
             Handwritten Answer Sheet Canvas
           </span>
-          <app-status-badge label="Non-Destructive SVG Layer" variant="info" />
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide border bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800 uppercase">
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+            Non-Destructive SVG Layer
+          </span>
         </div>
 
         <!-- Controls: Zoom / Pan / Layer toggle -->
@@ -75,13 +76,15 @@ export interface IAnnotationMarker {
           </div>
 
           <!-- Toggle Red Pen Layer -->
-          <app-button
-            [variant]="showOverlay() ? 'accent' : 'secondary'"
-            size="sm"
-            [icon]="showOverlay() ? '👁️' : '🕶️'"
-            [label]="showOverlay() ? 'Overlay On' : 'Overlay Off'"
-            (clicked)="toggleOverlay()"
-          />
+          <button
+            type="button"
+            (click)="toggleOverlay()"
+            [class]="showOverlay() ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-teal-500/20' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-all"
+          >
+            <span>{{ showOverlay() ? '👁️' : '🕶️' }}</span>
+            <span>{{ showOverlay() ? 'Overlay On' : 'Overlay Off' }}</span>
+          </button>
         </div>
       </div>
 
@@ -101,16 +104,16 @@ export interface IAnnotationMarker {
             </div>
 
             <div class="space-y-4 font-mono text-xs leading-relaxed">
-              <p>1. Consider two plates of area $A$ separated by distance $d$.</p>
-              <p>2. Surface charge density on plates $\sigma = \frac{Q}{A}$.</p>
-              <p>3. Electric field in vacuum region $E_0 = \frac{\sigma}{\varepsilon_0} = \frac{Q}{A \varepsilon_0}$.</p>
-              <p>4. When dielectric of constant $K$ is introduced, field reduces to $E = \frac{E_0}{K}$.</p>
-              <p>5. Potential difference $V = E_0(d - t) + \frac{E_0}{K}t = E_0\left(d - t + \frac{t}{K}\right)$.</p>
-              <p>6. Since capacitance $C = \frac{Q}{V}$, substituting $Q = \sigma A = E_0 \varepsilon_0 A$:</p>
+              <p>1. Consider two plates of area A separated by distance d.</p>
+              <p>2. Surface charge density on plates sigma = Q / A.</p>
+              <p>3. Electric field in vacuum region E0 = sigma / epsilon_0 = Q / (A * epsilon_0).</p>
+              <p>4. When dielectric of constant K is introduced, field reduces to E = E0 / K.</p>
+              <p>5. Potential difference V = E0 * (d - t) + (E0 / K) * t = E0 * [d - t + (t / K)].</p>
+              <p>6. Since capacitance C = Q / V, substituting Q = sigma * A = E0 * epsilon_0 * A:</p>
               <p class="font-bold text-slate-900 dark:text-white">
-                $\Rightarrow C = \frac{\varepsilon_0 A}{d - t\left(1 - \frac{1}{K}\right)}$
+                =&gt; C = (epsilon_0 * A) / [d - t * (1 - 1 / K)]
               </p>
-              <p class="text-emerald-700 dark:text-emerald-400 font-semibold">Special Case: When slab fills entire space ($t = d$), $C = \frac{K \varepsilon_0 A}{d}$.</p>
+              <p class="text-emerald-700 dark:text-emerald-400 font-semibold">Special Case: When slab fills entire space (t = d), C = (K * epsilon_0 * A) / d.</p>
             </div>
           </div>
 
