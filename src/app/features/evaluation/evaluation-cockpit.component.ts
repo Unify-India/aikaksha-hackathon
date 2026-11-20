@@ -1,183 +1,208 @@
-import { Component, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { StatCardComponent } from '../../shared/components/stat-card.component';
-import {
-  AnswerSheetViewerComponent,
-  IAnnotationMarker,
-} from './components/answer-sheet-viewer/answer-sheet-viewer.component';
-import {
-  RubricScorePanelComponent,
-  IRubricItem,
-} from './components/rubric-score-panel/rubric-score-panel.component';
+import { AnswerSheetViewerComponent } from './components/answer-sheet-viewer/answer-sheet-viewer.component';
+import { ClassResultsTableComponent } from './components/class-results-table/class-results-table.component';
+import { ClassRosterComponent } from './components/class-roster/class-roster.component';
 import { EvaluationAuditBarComponent } from './components/evaluation-audit-bar/evaluation-audit-bar.component';
+import { GradingActivityComponent } from './components/grading-activity/grading-activity.component';
+import { RubricScorePanelComponent } from './components/rubric-score-panel/rubric-score-panel.component';
+import { SchemePickerComponent } from './components/scheme-picker/scheme-picker.component';
+import { SchemeReviewComponent } from './components/scheme-review/scheme-review.component';
+import { SheetUploadComponent } from './components/sheet-upload/sheet-upload.component';
+import { EvaluationStore } from './data/evaluation.store';
 
+/** Workflow B: grade a whole class's handwritten answer sheets with Gemini, then review and approve. */
 @Component({
   selector: 'app-evaluation-cockpit',
-  standalone: true,
   imports: [
-    CommonModule,
     StatCardComponent,
     AnswerSheetViewerComponent,
-    RubricScorePanelComponent,
+    ClassResultsTableComponent,
+    ClassRosterComponent,
     EvaluationAuditBarComponent,
+    GradingActivityComponent,
+    RubricScorePanelComponent,
+    SchemePickerComponent,
+    SchemeReviewComponent,
+    SheetUploadComponent,
   ],
   template: `
     <div class="space-y-6">
-      <!-- Evaluation Audit Bar Component -->
-      <app-evaluation-audit-bar
-        [studentRoll]="currentStudentRoll()"
-        [studentName]="currentStudentName()"
-        [imageChecksum]="submissionChecksum()"
-        [checksumVerified]="isChecksumVerified()"
-        [confidenceScore]="aiConfidence()"
-        [awardedMarks]="totalAwardedScore()"
-        [maxMarks]="totalMaxScore()"
-        [isFirstSheet]="isFirst()"
-        (previousSheet)="handlePreviousSheet()"
-        (approveAndNext)="handleApproveAndNext()"
-      />
+      <header class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 class="text-xl font-bold text-slate-900 dark:text-white">Answer-sheet evaluation</h1>
+          <p class="text-sm text-slate-600 dark:text-slate-300">
+            Gemini reads the handwriting and marks each question; you review and approve.
+          </p>
+          <p class="mt-1 text-xs">
+            <span class="rounded-full border px-2 py-0.5 font-semibold" [class]="engineBadge().css">
+              {{ engineBadge().text }}
+            </span>
+          </p>
+        </div>
+        @if (store.phase() !== 'setup') {
+          <button type="button"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-600 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
+            (click)="store.startOver()">
+            Start a new batch
+          </button>
+        }
+      </header>
 
-      <!-- Quick Metrics Cards -->
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <app-stat-card title="Student Roll" [value]="currentStudentRoll()" [subtitle]="currentStudentName()" icon="👤" />
-        <app-stat-card
-          title="Provisional Score"
-          [value]="scoreSummary()"
-          subtitle="AI Step-Marking"
-          icon="📊"
+      @if (store.error(); as error) {
+        <div role="alert" class="flex items-start justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+          <span>⚠ {{ error }}</span>
+          <button type="button" class="font-semibold underline focus-visible:outline-2 focus-visible:outline-indigo-600" (click)="store.dismissError()">
+            Dismiss
+          </button>
+        </div>
+      }
+
+      @if (store.phase() === 'setup') {
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div class="space-y-6 lg:col-span-7">
+            @if (store.pendingDraft(); as draft) {
+              <app-scheme-review
+                [scheme]="draft"
+                [busy]="store.busy() === 'approving'"
+                (approve)="store.approveDraft($event)"
+                (discard)="store.discardDraft()"
+              />
+            } @else {
+              <app-scheme-picker
+                [schemes]="store.approvedSchemes()"
+                [selectedId]="store.selectedSchemeId()"
+                [loading]="store.busy() === 'loading_schemes'"
+                [disabled]="store.busy() !== 'idle'"
+                (selected)="store.selectScheme($event)"
+                (questionPaper)="store.draftFromQuestionPaper($event)"
+              />
+            }
+            <app-sheet-upload
+              [schemeReady]="!!store.selectedScheme() && store.selectedScheme()?.status === 'approved' && !store.pendingDraft()"
+              [uploading]="store.busy() === 'uploading'"
+              [disabled]="store.busy() !== 'idle'"
+              (start)="store.startGrading($event)"
+            />
+          </div>
+          <div class="lg:col-span-5">
+            <app-grading-activity [entries]="store.activity()" />
+          </div>
+        </div>
+      } @else {
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <app-stat-card title="Graded" [value]="store.finishedCount() + ' / ' + store.sheets().length" [subtitle]="store.phase() === 'grading' ? 'Grading in progress…' : 'All sheets graded'" icon="📝" />
+          <app-stat-card title="Approved" [value]="store.approvedCount()" subtitle="Teacher signed off" icon="✅" />
+          <app-stat-card title="Needs review" [value]="store.reviewCount()" subtitle="Low-confidence answers" icon="⚠️" />
+          <app-stat-card title="Class average" [value]="classAverage()" [subtitle]="store.jobScheme()?.title ?? ''" icon="📊" />
+        </div>
+
+        @if (view() === 'table') {
+          <app-class-results-table
+            [sheets]="store.sheets()"
+            [scheme]="store.jobScheme()"
+            [activeId]="store.activeSheetId()"
+            (open)="openStudent($event)"
+          />
+          <app-grading-activity [entries]="store.activity()" />
+        } @else {
+        <div>
+          <button type="button"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-600 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
+            (click)="view.set('table')">
+            ← Back to class results
+          </button>
+        </div>
+
+        <app-evaluation-audit-bar
+          [sheet]="store.activeSheet()"
+          [index]="store.activeIndex()"
+          [total]="store.sheets().length"
+          [busy]="store.busy() === 'saving'"
+          (previous)="store.previousSheet()"
+          (next)="store.nextSheet()"
+          (approve)="store.approveActiveAndNext()"
         />
-        <app-stat-card title="Handwriting OCR" value="96.4%" subtitle="High Confidence" icon="✍️" />
-        <app-stat-card title="Integrity Check" value="Zero Overwrite" subtitle="Non-destructive Overlay" icon="🛡️" />
-      </div>
 
-      <!-- Main Workspace: Visual Answer Sheet Canvas on Left, Rubric Scoring on Right -->
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <!-- Visual Answer Sheet + Non-Destructive Red-Pen Overlay -->
-        <div class="space-y-4 lg:col-span-7">
-          <app-answer-sheet-viewer
-            [annotations]="annotations()"
-            (markerClicked)="handleMarkerClicked($event)"
-          />
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div class="lg:col-span-2">
+            <app-class-roster
+              [sheets]="store.sheets()"
+              [activeId]="store.activeSheetId()"
+              [approved]="store.approvedCount()"
+              (selected)="store.openSheet($event)"
+            />
+          </div>
+          <div class="lg:col-span-6">
+            <app-answer-sheet-viewer
+              [file]="store.activeFile()"
+              [sheet]="store.activeSheet()"
+              [scheme]="store.jobScheme()"
+              [selectedQuestionId]="selectedQuestionId()"
+              (questionSelected)="selectQuestion($event)"
+            />
+          </div>
+          <div class="lg:col-span-4">
+            <app-rubric-score-panel
+              [sheet]="store.activeSheet()"
+              [scheme]="store.jobScheme()"
+              [selectedQuestionId]="selectedQuestionId()"
+              [readOnly]="marksReadOnly()"
+              (questionSelected)="selectQuestion($event)"
+              (overrideChanged)="store.setOverride($event.questionId, $event.marks)"
+              (resetRequested)="store.clearOverrides()"
+            />
+          </div>
         </div>
 
-        <!-- Step-by-Step Rubrics & Teacher Overrides Panel -->
-        <div class="space-y-4 lg:col-span-5">
-          <app-rubric-score-panel
-            [rubrics]="rubrics()"
-            (scoreOverridden)="onRubricOverridden($event)"
-            (resetRequested)="onResetRubrics()"
-          />
-        </div>
-      </div>
+        }
+      }
     </div>
   `,
 })
 export class EvaluationCockpitComponent {
-  public currentStudentRoll = signal<string>('2026-NEET-042');
-  public currentStudentName = signal<string>('Aarav Verma');
-  public submissionChecksum = signal<string>('sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069');
-  public isChecksumVerified = signal<boolean>(true);
-  public aiConfidence = signal<number>(0.964);
-  public isFirst = signal<boolean>(true);
+  protected readonly store = inject(EvaluationStore);
 
-  public annotations = signal<IAnnotationMarker[]>([
-    {
-      id: 'anno-1',
-      xPercent: 78,
-      yPercent: 30,
-      type: 'correct',
-      stepTitle: 'Step 2: Surface Charge',
-      comment: 'Accurately formulated sigma = Q/A.',
-      marksAwarded: 1,
-    },
-    {
-      id: 'anno-2',
-      xPercent: 72,
-      yPercent: 55,
-      type: 'correct',
-      stepTitle: 'Step 5: Potential Integral',
-      comment: 'Valid separation of vacuum vs dielectric potential.',
-      marksAwarded: 2,
-    },
-    {
-      id: 'anno-3',
-      xPercent: 68,
-      yPercent: 78,
-      type: 'correct',
-      stepTitle: 'Step 6: Final Formula & Case',
-      comment: 'Both general formula and t=d special case verified.',
-      marksAwarded: 2,
-    },
-  ]);
+  /** The question highlighted in both the viewer and the marks panel; cleared when another sheet opens. */
+  protected readonly selectedQuestionId = linkedSignal<string | null, string | null>({
+    source: this.store.activeSheetId,
+    computation: () => null,
+  });
 
-  public rubrics = signal<IRubricItem[]>([
-    {
-      id: 'step-1',
-      stepNumber: 1,
-      criterion: 'Gauss Law Formulation & Surface Charge Density',
-      modelAnswerSnippet: 'sigma = Q / A ; E_0 = sigma / epsilon_0 = Q / (A * epsilon_0)',
-      maxMarks: 2,
-      awardedMarks: 2,
-      reasoning: 'Surface charge correctly stated with appropriate units and polarity.',
-      confidence: 0.98,
-    },
-    {
-      id: 'step-2',
-      stepNumber: 2,
-      criterion: 'Potential Integral with Dielectric Slab (t thickness)',
-      modelAnswerSnippet: 'V = E_0 * (d - t) + (E_0 / K) * t',
-      maxMarks: 2,
-      awardedMarks: 2,
-      reasoning: 'Proper piecewise line integral of electric field across thickness boundaries.',
-      confidence: 0.94,
-    },
-    {
-      id: 'step-3',
-      stepNumber: 3,
-      criterion: 'Final Capacitance Expression & Special Case (t = d)',
-      modelAnswerSnippet: 'C = epsilon_0 * A / (d - t*(1 - 1/K)) ; When t=d => C = K * epsilon_0 * A / d',
-      maxMarks: 1,
-      awardedMarks: 1,
-      reasoning: 'Both general algebraic result and special case cleanly evaluated.',
-      confidence: 0.99,
-    },
-  ]);
+  /** 'table' = everyone's results together; 'sheet' = one student's sheet, marks and approval. */
+  protected readonly view = signal<'table' | 'sheet'>('table');
 
-  public totalAwardedScore(): number {
-    return this.rubrics().reduce((acc, curr) => acc + curr.awardedMarks, 0);
+  protected openStudent(submissionId: string): void {
+    this.store.openSheet(submissionId);
+    this.view.set('sheet');
   }
 
-  public totalMaxScore(): number {
-    return this.rubrics().reduce((acc, curr) => acc + curr.maxMarks, 0);
+  protected readonly engineBadge = computed(() => {
+    switch (this.store.engine) {
+      case 'server':
+        return { text: 'Engine: grading server', css: 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200' };
+      default:
+        return { text: 'Engine: Gemini from this browser (local testing only)', css: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200' };
+    }
+  });
+
+  protected readonly marksReadOnly = computed(() => {
+    const status = this.store.activeSheet()?.status;
+    return status !== 'graded' && status !== 'needs_review';
+  });
+
+  protected readonly classAverage = computed(() => {
+    const graded = this.store.sheets().filter((s) => s.questions.length > 0);
+    if (!graded.length) return '—';
+    const avg = graded.reduce((sum, s) => sum + s.totalAwarded, 0) / graded.length;
+    return `${avg.toFixed(1)} / ${graded[0].totalMax}`;
+  });
+
+  constructor() {
+    void this.store.loadSchemes();
   }
 
-  public scoreSummary(): string {
-    return `${this.totalAwardedScore()} / ${this.totalMaxScore()} (${((this.totalAwardedScore() / this.totalMaxScore()) * 100).toFixed(0)}%)`;
-  }
-
-  public handlePreviousSheet(): void {
-    alert('Navigating to previous student answer sheet.');
-  }
-
-  public handleApproveAndNext(): void {
-    alert(`Scores for ${this.currentStudentName()} (${this.totalAwardedScore()} pts) approved and committed to gradebook. Loading next student...`);
-  }
-
-  public handleMarkerClicked(marker: IAnnotationMarker): void {
-    console.log('Marker clicked:', marker);
-  }
-
-  public onRubricOverridden(event: { id: string; marks: number }): void {
-    this.rubrics.update((list) =>
-      list.map((r) =>
-        r.id === event.id ? { ...r, awardedMarks: event.marks, isOverridden: true } : r
-      )
-    );
-  }
-
-  public onResetRubrics(): void {
-    this.rubrics.update((list) =>
-      list.map((r) => ({ ...r, awardedMarks: r.maxMarks, isOverridden: false }))
-    );
+  protected selectQuestion(id: string): void {
+    this.selectedQuestionId.update((current) => (current === id ? null : id));
   }
 }

@@ -1,90 +1,90 @@
-import { Component, input, output, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { AppButtonComponent } from '../../../../shared/components/app-button/app-button.component';
-import { StatusBadgeComponent } from '../../../../shared/components/status-badge.component';
+import { Component, computed, input, output } from '@angular/core';
+import { ISheetEvaluation } from '../../models/evaluation.models';
 
+/** Header for the open sheet: who, score, confidence, integrity, and the human approval gate. */
 @Component({
   selector: 'app-evaluation-audit-bar',
-  standalone: true,
-  imports: [CommonModule, AppButtonComponent, StatusBadgeComponent],
   template: `
-    <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all dark:border-slate-800 dark:bg-slate-900">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <!-- Student & Integrity Status -->
-        <div class="flex items-center gap-3">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-lg font-bold">
-            🎓
-          </div>
+    @if (sheet(); as sheet) {
+      <section
+        aria-label="Sheet summary and approval"
+        class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      >
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
+            <p class="flex flex-wrap items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+              {{ sheet.studentLabel }}
+              <span class="text-sm font-normal text-slate-600 dark:text-slate-300">
+                · sheet {{ index() + 1 }} of {{ total() }} · {{ sheet.pageCount }} {{ sheet.pageCount === 1 ? 'page' : 'pages' }}
+              </span>
+              @if (sheet.status === 'approved') {
+                <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">✓ Approved</span>
+              } @else if (sheet.needsReview) {
+                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-200">⚠ Needs review</span>
+              }
+            </p>
+            @if (sheet.status === 'failed') {
+              <p role="alert" class="mt-1 text-sm text-rose-800 dark:text-rose-300">✗ Grading failed: {{ sheet.error }}</p>
+            }
+            @if (sheet.checksum) {
+              <p class="mt-1 font-mono text-xs text-slate-600 dark:text-slate-300">
+                SHA-256 {{ sheet.checksum.slice(0, 24) }}… · original file unchanged
+              </p>
+            }
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="rounded-xl border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
+              <span class="block text-[11px] text-slate-600 dark:text-slate-300">Score</span>
+              <span class="font-mono text-sm font-bold text-slate-900 dark:text-white">{{ sheet.totalAwarded }} / {{ sheet.totalMax }}</span>
+            </div>
+            <div class="rounded-xl border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
+              <span class="block text-[11px] text-slate-600 dark:text-slate-300">Handwriting read</span>
+              <span class="font-mono text-sm font-bold text-slate-900 dark:text-white">{{ (sheet.ocrConfidence * 100).toFixed(0) }}%</span>
+            </div>
+            <div class="rounded-xl border border-slate-200 px-3.5 py-2 text-center dark:border-slate-700">
+              <span class="block text-[11px] text-slate-600 dark:text-slate-300">Overrides</span>
+              <span class="font-mono text-sm font-bold text-slate-900 dark:text-white">{{ overrides() }}</span>
+            </div>
+
             <div class="flex items-center gap-2">
-              <span class="text-sm font-bold text-slate-900 dark:text-white">
-                Roll: {{ studentRoll() }} &bull; {{ studentName() }}
-              </span>
-              <app-status-badge
-                [label]="checksumVerified() ? 'SHA-256 VERIFIED' : 'TAMPER WARNING'"
-                [variant]="checksumVerified() ? 'success' : 'danger'"
-              />
-            </div>
-            <div class="mt-0.5 flex items-center gap-2 text-xs text-slate-500 font-mono">
-              <span class="truncate max-w-xs select-all" [title]="imageChecksum()">
-                Checksum: {{ imageChecksum() }}
-              </span>
-              <span>&bull;</span>
-              <span>Non-Destructive SVG Overlay</span>
+              <button type="button"
+                class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:opacity-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
+                [disabled]="index() === 0" (click)="previous.emit()">
+                Previous
+              </button>
+              <button type="button"
+                class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:opacity-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
+                [disabled]="index() >= total() - 1" (click)="next.emit()">
+                Next
+              </button>
+              <button type="button"
+                class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+                [disabled]="!canApprove()" (click)="approve.emit()">
+                {{ busy() ? 'Saving…' : sheet.status === 'approved' ? 'Approved' : 'Approve & next' }}
+              </button>
             </div>
           </div>
         </div>
-
-        <!-- Metrics & Human Gate Button -->
-        <div class="flex flex-wrap items-center gap-3">
-          <!-- Model Evaluation Confidence -->
-          <div class="rounded-xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-2 text-center dark:border-slate-800 dark:bg-slate-800/40">
-            <span class="text-[11px] font-medium text-slate-400 block">AI Confidence</span>
-            <span class="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-              {{ (confidenceScore() * 100).toFixed(1) }}%
-            </span>
-          </div>
-
-          <!-- Total Score Pill -->
-          <div class="rounded-xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-2 text-center dark:border-slate-800 dark:bg-slate-800/40">
-            <span class="text-[11px] font-medium text-slate-400 block">Evaluated Score</span>
-            <span class="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-              {{ awardedMarks() }} / {{ maxMarks() }} pts
-            </span>
-          </div>
-
-          <!-- Navigation & Approval Gate Action -->
-          <div class="flex items-center gap-2 pl-2">
-            <app-button
-              variant="secondary"
-              size="sm"
-              label="Previous Sheet"
-              [disabled]="isFirstSheet()"
-              (clicked)="previousSheet.emit()"
-            />
-            <app-button
-              variant="accent"
-              icon="✅"
-              size="md"
-              label="Approve & Next Sheet"
-              (clicked)="approveAndNext.emit()"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+      </section>
+    }
   `,
 })
 export class EvaluationAuditBarComponent {
-  public studentRoll = input<string>('2026-NEET-042');
-  public studentName = input<string>('Aarav Verma');
-  public imageChecksum = input<string>('sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069');
-  public checksumVerified = input<boolean>(true);
-  public confidenceScore = input<number>(0.964);
-  public awardedMarks = input<number>(18);
-  public maxMarks = input<number>(20);
-  public isFirstSheet = input<boolean>(false);
+  readonly sheet = input<ISheetEvaluation | null>(null);
+  readonly index = input(0);
+  readonly total = input(0);
+  readonly busy = input(false);
 
-  public previousSheet = output<void>();
-  public approveAndNext = output<void>();
+  readonly previous = output<void>();
+  readonly next = output<void>();
+  readonly approve = output<void>();
+
+  protected readonly overrides = computed(
+    () => this.sheet()?.questions.filter((q) => q.teacherOverride !== undefined).length ?? 0,
+  );
+  protected readonly canApprove = computed(() => {
+    const sheet = this.sheet();
+    return !!sheet && !this.busy() && ['graded', 'needs_review'].includes(sheet.status);
+  });
 }
