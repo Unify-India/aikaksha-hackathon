@@ -29,6 +29,7 @@ export interface WorkflowOverrides {
 export interface BatchRef {
   id: string;
   name: string;
+  subject?: string;
   classLevel?: string;
   targetExam?: string;
 }
@@ -81,7 +82,7 @@ export function planExam(
   const s = intent?.extractedSlots ?? {};
   const pick = <T>(override: T | undefined, fromIntent: T | undefined) => (override !== undefined ? override : fromIntent);
 
-  const subject = pick(overrides.subject, s.subject);
+  const subjectGiven = pick(overrides.subject, s.subject);
   const topic = pick(overrides.topic, s.topic);
   const subtopic = pick(overrides.subtopic, s.subtopic);
   const count = pick(overrides.count, s.questionCount);
@@ -99,6 +100,8 @@ export function planExam(
     byName ??
     (overrides.batchId === undefined && !s.batchName && batches.length === 1 ? batches[0] : undefined);
   const batchId = overrides.batchId ?? batch?.id;
+  // A batch is taught one subject: use it unless the teacher named a different one.
+  const subject = subjectGiven ?? batch?.subject;
 
   const missing: string[] = [];
   const legacy = intent === undefined;

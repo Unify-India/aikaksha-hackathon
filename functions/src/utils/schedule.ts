@@ -16,7 +16,8 @@ export type ScheduleErrorCode =
   | 'MISSING_END'
   | 'INVALID_SCHEDULE'
   | 'DURATION_MISMATCH'
-  | 'START_IN_PAST';
+  | 'START_IN_PAST'
+  | 'WEEKDAY_MISMATCH';
 
 export class ScheduleError extends Error {
   constructor(
@@ -146,6 +147,21 @@ export function resolveDateText(text: string, now: Date, timezone: string = DEFA
     const current = dayOfWeek(today);
     const ahead = ((target - current + 7) % 7) || 7;
     return addDays(today, ahead);
+  }
+
+  // "Monday, 22 November 2026": a weekday in front of an explicit date. The date wins, but only if they agree.
+  const dayAndDate = /^(?:on )?(sunday|monday|tuesday|wednesday|thursday|friday|saturday) (.+)$/.exec(t);
+  if (dayAndDate?.[1] && dayAndDate[2]) {
+    const date = resolveDateText(dayAndDate[2], now, timezone);
+    const actual = WEEKDAYS[dayOfWeek(date)] ?? '';
+    if (actual !== dayAndDate[1]) {
+      const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+      throw new ScheduleError(
+        'WEEKDAY_MISMATCH',
+        `${date.day} ${cap(MONTHS[date.month - 1] ?? '')} ${date.year} is a ${cap(actual)}, not a ${cap(dayAndDate[1])}. Which date did you mean?`,
+      );
+    }
+    return date;
   }
 
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);

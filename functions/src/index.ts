@@ -23,6 +23,7 @@ import {
 } from './modules/exams/examTools.js';
 import { understandTeacherRequest } from './modules/workflows/understand.js';
 import { getTeacherDraft } from './modules/exams/teacherDraft.js';
+import { handleMcpRequest, mcpMethodNotAllowed } from './modules/mcp/mcpServer.js';
 
 // Auto-seed Firestore collections on cold start
 seedFirestoreDatabase().catch((err) => {
@@ -111,6 +112,11 @@ apiApp.post('/api/tools/finalize_and_publish_exam', authMiddleware, async (req, 
     res.status(400).json({ error: 'TOOL_ERROR', message: errorMsg });
   }
 });
+
+// Real MCP server (Streamable HTTP): connect Gemini CLI / MCP Inspector / Claude to {base}/mcp
+apiApp.post('/mcp', authMiddleware, handleMcpRequest);
+apiApp.get('/mcp', mcpMethodNotAllowed);
+apiApp.delete('/mcp', mcpMethodNotAllowed);
 
 // Teacher-only draft view (questions WITH keys + audit flags) for Exam Studio / Review Gate.
 apiApp.get('/api/exams/:examId/draft', authMiddleware, async (req, res) => {
@@ -205,7 +211,7 @@ apiApp.post('/api/tools/create_complete_exam', authMiddleware, async (req, res) 
 // Primary Cloud Function: Express API exported as `api`
 export const api = functions
   .region(DEPLOYMENT_REGION)
-  .runWith({ timeoutSeconds: 300, memory: '1GB', secrets: ['GEMINI_API_KEY'] })
+  .runWith({ timeoutSeconds: 300, memory: '1GB', secrets: ['GEMINI_API_KEY', 'DEMO_AUTH_TOKEN'] })
   .https.onRequest(apiApp);
 
 // Exam Triggers

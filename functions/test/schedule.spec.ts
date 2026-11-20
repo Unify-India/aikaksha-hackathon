@@ -1,4 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { resolveDateText as resolveDate } from '../src/utils/schedule.js';
+
+describe('weekday written in front of a date', () => {
+  const now = new Date('2026-11-20T09:00:00+05:30'); // Friday
+  it('accepts it when they agree', () => {
+    expect(resolveDate('Monday, 23 November 2026', now)).toEqual({ year: 2026, month: 11, day: 23 });
+    expect(resolveDate('on monday 23 nov 2026', now)).toEqual({ year: 2026, month: 11, day: 23 });
+  });
+  it('asks instead of guessing when they disagree (22 Nov 2026 is a Sunday)', () => {
+    expect(() => resolveDate('monday 22 nov 2026', now)).toThrow(/22 November 2026 is a Sunday, not a Monday/);
+  });
+});
 import { parseTime, resolveDateText, resolveSchedule, ScheduleError } from '../src/utils/schedule.js';
 
 // Friday 20 Nov 2026, 09:00 IST

@@ -4,14 +4,15 @@ export * from './environment.interface';
 
 export const environment: AppEnvironment = {
   production: true,
+  // Same Firebase project as the backend deploy target (.firebaserc: abhyas-unify).
   firebase: {
-    apiKey: 'YOUR_PRODUCTION_FIREBASE_API_KEY',
-    authDomain: 'ai-kaksha.firebaseapp.com',
-    projectId: 'ai-kaksha-prod',
-    storageBucket: 'ai-kaksha-prod.appspot.com',
-    messagingSenderId: '987654321098',
-    appId: '1:987654321098:web:prodabcdef12345678',
-    databaseURL: 'https://ai-kaksha-prod-default-rtdb.firebaseio.com',
+    apiKey: 'AIzaSyBYN7lRG4rHeuQkHvHu_hii_xFzTI8d-88',
+    authDomain: 'abhyas-unify.firebaseapp.com',
+    projectId: 'abhyas-unify',
+    storageBucket: 'abhyas-unify.firebasestorage.app',
+    messagingSenderId: '629153546558',
+    appId: '1:629153546558:web:d477d43a7aea25a444ac6f',
+    measurementId: 'G-K9096T7FSH',
   },
   gemini: {
     apiKey: 'YOUR_PRODUCTION_GEMINI_API_KEY',

@@ -4,14 +4,16 @@ export * from './environment.interface';
 
 export const environment: AppEnvironment = {
   production: false,
+  // Firebase web config for project abhyas-unify. Public by design (restrict the key to your
+  // domains in Google Cloud console); Firestore access is still denied by firestore.rules.
   firebase: {
-    apiKey: 'YOUR_FIREBASE_API_KEY',
-    authDomain: 'ai-kaksha-demo.firebaseapp.com',
-    projectId: 'ai-kaksha-demo',
-    storageBucket: 'ai-kaksha-demo.appspot.com',
-    messagingSenderId: '123456789012',
-    appId: '1:123456789012:web:abcdef1234567890',
-    databaseURL: 'https://ai-kaksha-demo-default-rtdb.firebaseio.com',
+    apiKey: 'AIzaSyBYN7lRG4rHeuQkHvHu_hii_xFzTI8d-88',
+    authDomain: 'abhyas-unify.firebaseapp.com',
+    projectId: 'abhyas-unify',
+    storageBucket: 'abhyas-unify.firebasestorage.app',
+    messagingSenderId: '629153546558',
+    appId: '1:629153546558:web:d477d43a7aea25a444ac6f',
+    measurementId: 'G-K9096T7FSH',
   },
   gemini: {
     apiKey: 'YOUR_GEMINI_API_KEY',

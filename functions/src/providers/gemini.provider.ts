@@ -17,7 +17,7 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 
 /** Default model; override with GEMINI_MODEL. */
-export const DEFAULT_MODEL = process.env['GEMINI_MODEL'] ?? 'gemini-2.5-flash';
+export const DEFAULT_MODEL = process.env['GEMINI_MODEL'] ?? 'gemini-3.8-flash';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -296,7 +296,13 @@ function retryDelayHintMs(err: unknown): number | undefined {
   return match?.[1] ? Math.ceil(Number(match[1]) * 1000) : undefined;
 }
 
+/** A per-day quota (e.g. "GenerateRequestsPerDayPerProjectPerModel") will not recover by retrying in seconds. */
+export function isDailyQuotaError(err: { message: string }): boolean {
+  return /PerDay|per day/i.test(err.message);
+}
+
 function isRetryable(err: GeminiError): boolean {
+  if (err.code === 'MODEL_RATE_LIMITED' && isDailyQuotaError(err)) return false;
   if (err.code === 'MODEL_RATE_LIMITED' || err.code === 'MODEL_TIMEOUT' || err.code === 'MODEL_INVALID_OUTPUT') {
     return true;
   }

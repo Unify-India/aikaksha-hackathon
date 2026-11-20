@@ -63,6 +63,17 @@ describe('generateJson', () => {
     await expect(call(2)).rejects.toMatchObject({ code: 'MODEL_RATE_LIMITED', status: 429 });
   });
 
+  it('does not retry when the DAILY quota is exhausted (fails fast)', async () => {
+    const daily = new ApiError({
+      message: '{"error":{"code":429,"details":[{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]}}',
+      status: 429,
+    });
+    const fake = fakeClient(daily, '{"answer": 1}');
+    setGeminiClientForTests(fake);
+    await expect(call()).rejects.toMatchObject({ code: 'MODEL_RATE_LIMITED' });
+    expect(fake.calls).toHaveLength(1);
+  });
+
   it('does not retry a 400', async () => {
     const fake = fakeClient(new ApiError({ message: 'bad request', status: 400 }), '{"answer": 1}');
     setGeminiClientForTests(fake);
