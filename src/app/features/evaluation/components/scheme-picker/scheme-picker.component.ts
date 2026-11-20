@@ -79,7 +79,7 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
           <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Awaiting your approval</h3>
           <ul class="mt-2 space-y-2">
             @for (scheme of pending(); track scheme.id) {
-              <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50/60 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">
+              <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-300 bg-indigo-50/50 p-3 text-sm dark:border-indigo-700 dark:bg-slate-900">
                 <span class="min-w-0">
                   <span class="block font-semibold text-slate-900 dark:text-white">{{ scheme.title }}</span>
                   <span class="text-xs text-slate-700 dark:text-slate-300">
@@ -92,7 +92,7 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
                   [attr.aria-label]="'View question paper ' + scheme.title + ' (opens in a new tab)'">View question paper ↗</a>
                 }
                 <button type="button"
-                  class="rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
+                  class="rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
                   [disabled]="disabled()"
                   [attr.aria-label]="'Review drafted scheme ' + scheme.title"
                   (click)="reviewPending.emit(scheme.id)">

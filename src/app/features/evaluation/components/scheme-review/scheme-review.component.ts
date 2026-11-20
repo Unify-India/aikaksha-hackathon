@@ -8,7 +8,7 @@ import { IMarkingScheme } from '../../models/evaluation.models';
     <section
       aria-labelledby="draft-heading"
       class="rounded-2xl border p-5"
-      [class]="readOnly() ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900' : 'border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/30'"
+      [class]="readOnly() ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900' : 'border-indigo-300 bg-white dark:border-indigo-700 dark:bg-slate-900'"
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
