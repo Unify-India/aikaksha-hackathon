@@ -101,7 +101,7 @@ export class FakeEvaluationBackend implements EvaluationBackend {
 
     const jobId = `job-${this.nextId++}`;
     const sheets: ISheetEvaluation[] = uploads.map((upload) => ({
-      submissionId: `sub-${this.nextId++}`,
+      submissionId: upload.submissionId ?? `sub-${this.nextId++}`,
       jobId,
       schemeId,
       studentLabel: upload.studentLabel,

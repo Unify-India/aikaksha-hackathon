@@ -68,7 +68,7 @@ export class HttpEvaluationBackend implements EvaluationBackend {
     const teacherExamples = JSON.stringify(options?.teacherExamples ?? []);
     const jobId = `job-${Date.now().toString(36)}`;
     const sheets: ISheetEvaluation[] = uploads.map((u, i) => ({
-      submissionId: `${jobId}-${i + 1}`,
+      submissionId: u.submissionId ?? `${jobId}-${i + 1}`,
       jobId,
       schemeId,
       studentLabel: u.studentLabel,

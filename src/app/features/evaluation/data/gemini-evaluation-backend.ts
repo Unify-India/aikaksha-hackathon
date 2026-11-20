@@ -82,7 +82,7 @@ export class GeminiEvaluationBackend implements EvaluationBackend {
     const schemeId = scheme.id;
     const jobId = `job-${Date.now().toString(36)}`;
     const sheets: ISheetEvaluation[] = uploads.map((upload, i) => ({
-      submissionId: `${jobId}-${i + 1}`,
+      submissionId: upload.submissionId ?? `${jobId}-${i + 1}`,
       jobId,
       schemeId,
       studentLabel: upload.studentLabel,

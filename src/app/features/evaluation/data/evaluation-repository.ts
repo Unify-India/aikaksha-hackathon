@@ -124,7 +124,7 @@ export class FirebaseEvaluationRepository implements EvaluationRepository {
         ...sheet,
         submissionId: d.id,
         status,
-        error: status === 'failed' && !sheet.error ? 'Grading did not finish. Upload this paper again.' : sheet.error,
+        error: status === 'failed' && !sheet.error ? 'Grading did not finish. Use "Retry grading" to grade it again.' : sheet.error,
       };
     });
   }
@@ -144,16 +144,15 @@ export class FirebaseEvaluationRepository implements EvaluationRepository {
 
   async saveSheet(paperId: string, sheet: ISheetEvaluation): Promise<void> {
     const { db, fs } = await this.connect();
-    await fs.setDoc(
-      fs.doc(db, QUESTION_PAPERS, paperId, ANSWER_SHEETS, sheet.submissionId),
-      toPlain({
-        ...sheet,
-        storedStatus: toStoredSheetStatus(sheet.status),
-        studentIndex: studentIndexOf(sheet.studentLabel),
-        updatedAt: new Date().toISOString(),
-      }),
-      { merge: true },
-    );
+    const data: Record<string, unknown> = toPlain({
+      ...sheet,
+      storedStatus: toStoredSheetStatus(sheet.status),
+      studentIndex: studentIndexOf(sheet.studentLabel),
+      updatedAt: new Date().toISOString(),
+    });
+    // A merge keeps fields that aren't sent, so clear an old error explicitly (e.g. after Retry grading).
+    if (sheet.error === undefined) data['error'] = fs.deleteField();
+    await fs.setDoc(fs.doc(db, QUESTION_PAPERS, paperId, ANSWER_SHEETS, sheet.submissionId), data, { merge: true });
   }
 
   async downloadSheetFile(sheet: ISheetEvaluation): Promise<File | null> {

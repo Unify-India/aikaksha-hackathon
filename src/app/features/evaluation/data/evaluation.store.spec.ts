@@ -154,4 +154,40 @@ describe('EvaluationStore (fake backend + in-memory Firebase)', () => {
     expect([...repo.papers.values()].filter((p) => p.status === 'draft')).toHaveLength(1);
     expect(store.pendingSchemes()).toHaveLength(0);
   }, 10_000);
+  it('retries a failed sheet in place: same id, same student, saved PDF', async () => {
+    await repo.saveSheet(SAMPLE_MATHS_SCHEME.id, {
+      submissionId: 'job-old-3',
+      jobId: 'job-old',
+      schemeId: SAMPLE_MATHS_SCHEME.id,
+      studentLabel: 'Student C',
+      fileName: 'sheet-03.pdf',
+      mimeType: 'application/pdf',
+      pageCount: 12,
+      checksum: '',
+      status: 'failed',
+      error: 'Grading did not finish.',
+      questions: [],
+      totalAwarded: 0,
+      totalMax: 23,
+      ocrConfidence: 0,
+      needsReview: false,
+      filePath: 'question_papers/x/answer_sheets/job-old-3.pdf',
+    });
+    await store.loadSchemes();
+    await vi.waitFor(() => expect(store.savedSheets()).toHaveLength(1));
+    store.openSavedResults('job-old-3');
+
+    await store.retrySheet('job-old-3');
+    expect(store.error()).toBeNull();
+    await vi.waitFor(
+      () => expect(['graded', 'needs_review']).toContain(store.activeSheet()!.status),
+      { timeout: 8_000, interval: 100 },
+    );
+    const retried = store.activeSheet()!;
+    expect(retried).toMatchObject({ submissionId: 'job-old-3', studentLabel: 'Student C' });
+    expect(retried.questions.length).toBe(SAMPLE_MATHS_SCHEME.questions.length);
+    expect(retried.error).toBeUndefined();
+    expect(repo.sheets.get(SAMPLE_MATHS_SCHEME.id)!.size).toBe(1);
+    expect(repo.statusHistory.get('job-old-3')).toEqual(['failed', 'draft', 'in_progress', 'graded']);
+  }, 15_000);
 });

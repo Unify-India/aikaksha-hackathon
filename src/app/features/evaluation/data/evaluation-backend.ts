@@ -21,6 +21,8 @@ export interface IUploadSheet {
   pageCount: number;
   /** Converts the PDF into JPEG pages on first call (cached), so conversion happens when the paper's turn comes. */
   loadPages: () => Promise<Blob[]>;
+  /** Set when re-grading an existing sheet (Retry grading): keeps its id so the saved record is updated. */
+  submissionId?: string;
 }
 
 export type RunEventHandler = (event: EvaluationRunEvent) => void;

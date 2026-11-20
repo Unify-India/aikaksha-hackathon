@@ -162,6 +162,8 @@ import { EvaluationStore } from './data/evaluation.store';
           [index]="store.activeIndex()"
           [total]="store.sheets().length"
           [busy]="store.busy() === 'saving'"
+          [retrying]="store.busy() === 'retrying'"
+          (retry)="store.retrySheet(store.activeSheetId()!)"
           (previous)="store.previousSheet()"
           (next)="store.nextSheet()"
           (approve)="store.approveActiveAndNext()"

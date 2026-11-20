@@ -13,7 +13,7 @@ import { summariseSheet } from './sheet-summary';
 import { collectDecisions, learningStats, pickExamples } from './teacher-feedback';
 
 export type EvaluationPhase = 'setup' | 'grading' | 'review';
-export type BusyState = 'idle' | 'loading_schemes' | 'drafting' | 'approving' | 'uploading' | 'saving';
+export type BusyState = 'idle' | 'loading_schemes' | 'drafting' | 'approving' | 'uploading' | 'saving' | 'retrying';
 
 export interface IActivityEntry {
   id: number;
@@ -262,6 +262,45 @@ export class EvaluationStore {
       done
         .then(() => this.phase.set('review'))
         .catch((e: unknown) => this.error.set(errorText(e)));
+    });
+  }
+
+  /**
+   * Grades a failed sheet again, using its PDF (kept in the browser, or downloaded from Storage).
+   * Keeps the same id and student label, so the saved record is updated instead of duplicated.
+   */
+  async retrySheet(submissionId: string): Promise<void> {
+    const sheet = this.sheets().find((s) => s.submissionId === submissionId);
+    const scheme = this.schemes().find((s) => s.id === sheet?.schemeId) ?? null;
+    if (!sheet || !scheme) return;
+
+    await this.run('retrying', async () => {
+      let file: File | null = this.localFiles()[submissionId] ?? null;
+      if (!file && this.persist) {
+        const downloaded = await this.repo.downloadSheetFile(sheet);
+        if (downloaded) this.localFiles.update((files) => ({ ...files, [submissionId]: downloaded }));
+        file = downloaded;
+      }
+      if (!file) throw new Error(`No saved PDF for ${sheet.studentLabel}. Upload this paper again from the setup screen.`);
+
+      const pdfFile = file;
+      let pages: Promise<Blob[]> | null = null;
+      const upload: IUploadSheet = {
+        file: pdfFile,
+        studentLabel: sheet.studentLabel,
+        pageCount: await this.pdf.countPages(pdfFile),
+        loadPages: () => (pages ??= this.pdf.toJpegPages(pdfFile)),
+        submissionId,
+      };
+      const examples = pickExamples(
+        collectDecisions(this.sheets().filter((s) => s.submissionId !== submissionId), scheme),
+      );
+      const { done } = await this.backend.startGrading(scheme, [upload], (e) => this.handleEvent(e), {
+        teacherExamples: examples,
+      });
+      // Back to the start of the pipeline; events will move it to grading → graded.
+      this.updateSheet({ ...sheet, status: 'queued', error: undefined, questions: [], totalAwarded: 0, needsReview: false });
+      done.catch((e: unknown) => this.error.set(errorText(e)));
     });
   }
 

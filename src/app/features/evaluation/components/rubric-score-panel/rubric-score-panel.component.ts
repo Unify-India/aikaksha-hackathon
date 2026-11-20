@@ -60,7 +60,7 @@ const VERDICT_LABEL: Record<QuestionVerdict, { icon: string; text: string; css: 
           @switch (sheet()?.status) {
             @case ('grading') { Gemini is grading this sheet — usually 30–90 seconds. Progress is shown under “Agent activity”. }
             @case ('queued') { Waiting for the sheets before it to finish grading. }
-            @case ('failed') { Grading failed for this sheet. }
+            @case ('failed') { Grading failed for this sheet. Use “Retry grading” above to grade it again. }
             @default { Marks appear here once this sheet is graded. }
           }
         </p>
