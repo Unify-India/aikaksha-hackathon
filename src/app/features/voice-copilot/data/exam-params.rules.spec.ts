@@ -5,6 +5,7 @@ const ctx: IRulesContext = { today: '2026-11-21', batches: TEACHER_BATCHES };
 
 const fullExam = {
   subject: 'Physics',
+  duration: 45,
   topic: 'Electrostatics',
   batchId: 'batch-lakshya-2026',
   targetQuestions: 15,
@@ -15,7 +16,7 @@ const fullExam = {
 describe('exam params rules', () => {
   it('reports every teacher-only field as missing for an empty draft', () => {
     const ev = evaluateDraft({}, ctx);
-    expect(ev.missing).toEqual(['topic', 'batchId', 'subject', 'targetQuestions', 'date', 'startTime']);
+    expect(ev.missing).toEqual(['topic', 'batchId', 'subject', 'targetQuestions', 'date', 'startTime', 'duration']);
     expect(ev.complete).toBe(false);
     expect(ev.result).toBeNull();
   });
@@ -40,9 +41,10 @@ describe('exam params rules', () => {
       status: 'draft',
     });
     expect(ev.result?.generation).toEqual({ intent: 'CREATE_EXAM', topic: 'Electrostatics', subtopics: [], difficulty: 'medium', questionType: 'MCQ' });
-    expect(ev.defaulted).toEqual(expect.arrayContaining(['duration', 'endTime', 'defaultMarks', 'title']));
+    expect(ev.defaulted).toEqual(expect.arrayContaining(['endTime', 'defaultMarks', 'title']));
     expect(ev.defaulted).not.toContain('targetQuestions');
     expect(ev.defaulted).not.toContain('subject');
+    expect(ev.defaulted).not.toContain('duration');
   });
 
   it('uses board marking (1/0, no negative) for the CBSE batch', () => {
@@ -153,5 +155,25 @@ describe('exam params rules', () => {
 
   it('treats an empty numeric string as missing, not zero', () => {
     expect(sanitizeDraftArgs({ targetQuestions: '', duration: ' ' })).toEqual({});
+  });
+
+  it('never defaults the duration of an exam: it is required until the teacher states it', () => {
+    const { duration, ...noDuration } = fullExam;
+    expect(duration).toBe(45);
+    const ev = evaluateDraft(noDuration, ctx);
+    expect(ev.missing).toEqual(['duration']);
+    expect(ev.examParams.duration).toBeUndefined();
+    expect(ev.examParams.endTime).toBeUndefined();
+    expect(ev.complete).toBe(false);
+  });
+
+  it('takes the duration from an explicit start and end time ("10 se 11 baje"), without a default tag', () => {
+    const { duration, ...noDuration } = fullExam;
+    expect(duration).toBe(45);
+    const ev = evaluateDraft({ ...noDuration, startTime: '10:00', endTime: '11:00' }, ctx);
+    expect(ev.missing).toEqual([]);
+    expect(ev.examParams).toMatchObject({ duration: 60, endTime: '11:00' });
+    expect(ev.defaulted).not.toContain('duration');
+    expect(evaluateDraft({ ...noDuration, startTime: '10:00', endTime: '09:00' }, ctx).missing).toContain('duration');
   });
 });

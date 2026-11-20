@@ -1,4 +1,5 @@
 import { Component, computed, input, output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { IExamIntakeResult } from '../../../shared/models/exam-creation.model';
 import { ICreationState } from '../data/exam-intake.store';
 import { IDraftEvaluation, spokenDate } from '../data/exam-params.rules';
@@ -13,6 +14,7 @@ interface IRow {
 /** Read-back of the collected parameters: a confirm step while live, the final JSON once done. */
 @Component({
   selector: 'app-exam-params-card',
+  imports: [RouterLink],
   template: `
     <section
       class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
@@ -34,7 +36,7 @@ interface IRow {
       <dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         @for (row of rows(); track row.label) {
           <div class="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1.5 dark:border-slate-800">
-            <dt class="text-slate-600 dark:text-slate-400">{{ row.label }}</dt>
+            <dt class="shrink-0 text-slate-600 dark:text-slate-400">{{ row.label }}</dt>
             <dd class="text-right font-medium text-slate-900 dark:text-slate-100">
               {{ row.value }}
               @if (row.defaulted) {
@@ -71,6 +73,12 @@ interface IRow {
                   <p class="mt-1">{{ exam.totalQuestions }} questions · {{ exam.totalMarks }} marks · ID <span class="font-mono">{{ exam.examId }}</span></p>
                   <p class="mt-1 break-all">Student link: <a class="font-medium underline underline-offset-2" [href]="exam.studentUrl" target="_blank" rel="noopener">{{ exam.studentUrl }}</a></p>
                 </div>
+                <a
+                  [routerLink]="['/exam-studio', exam.examId]"
+                  class="mt-3 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                >
+                  Open in Exam Studio <span aria-hidden="true">→</span>
+                </a>
               }
             }
             @case ('failed') {

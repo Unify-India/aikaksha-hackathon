@@ -8,6 +8,10 @@ import {
   ICreateCompleteExamRequest,
   ICreateCompleteExamResponse,
 } from '../../shared/models/exam-creation.model';
+import { IStudioExam, IStudioExamDetail } from '../../shared/models/exam-read.model';
+
+/** Public student portal; student exam links always point here, whatever host the teacher app runs on. */
+export const STUDENT_PORTAL_URL = 'https://aikaksha.co.in';
 
 /** A failed create-complete call, with the server's machine-readable code when there is one. */
 export class ExamApiError extends Error {
@@ -23,8 +27,10 @@ export class ExamApiError extends Error {
 }
 
 /**
- * Client for the single-payload exam creation endpoint.
- * Contract: docs/UI_EXAM_CREATION_INTEGRATION_GUIDE.md (§2 endpoint and headers, §3 payload, §4 responses).
+ * Client for the exam endpoints of the `api` Cloud Function.
+ * - POST /api/exams/create-complete: docs/UI_EXAM_CREATION_INTEGRATION_GUIDE.md (§2 endpoint and headers, §3 payload, §4 responses)
+ * - GET /api/exams, GET /api/exams/:examId: teacher read models (functions/src/modules/exams/examViews.ts)
+ * The teacher is derived on the server from the bearer token; never sent in the body.
  */
 @Service()
 export class ExamApiService {
@@ -37,12 +43,7 @@ export class ExamApiService {
    * idempotency, so a retry after a dropped connection cannot create the exam twice.
    */
   async createCompleteExam(payload: ICreateCompleteExamRequest, requestId: string): Promise<ICreateCompleteExamResponse> {
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.config.demoToken}`,
-      'X-Request-ID': requestId,
-      'X-Tenant-ID': this.config.tenantId,
-    });
+    const headers = this.headers().set('Content-Type', 'application/json').set('X-Request-ID', requestId);
     try {
       const raw = await firstValueFrom(
         this.http.post<ICreateCompleteExamRawResponse>(`${this.config.baseUrl}/api/exams/create-complete`, payload, { headers }),
@@ -50,11 +51,36 @@ export class ExamApiService {
       return {
         ...raw,
         status: raw.status === 'upcoming' ? 'upcoming' : 'draft',
-        studentUrl: `${window.location.origin}/student/exams/${raw.examId}`,
+        studentUrl: `${STUDENT_PORTAL_URL}/student/exams/${raw.examId}`,
       };
     } catch (err) {
       throw toExamApiError(err);
     }
+  }
+
+  /** The signed-in teacher's exams, newest first. */
+  async listExams(): Promise<IStudioExam[]> {
+    try {
+      const res = await firstValueFrom(this.http.get<{ exams: IStudioExam[] }>(`${this.config.baseUrl}/api/exams`, { headers: this.headers() }));
+      return res.exams ?? [];
+    } catch (err) {
+      throw toExamApiError(err);
+    }
+  }
+
+  /** One exam with every question and its answer key (teacher only; 404 / 403 otherwise). */
+  async getExam(examId: string): Promise<IStudioExamDetail> {
+    try {
+      return await firstValueFrom(
+        this.http.get<IStudioExamDetail>(`${this.config.baseUrl}/api/exams/${encodeURIComponent(examId)}`, { headers: this.headers() }),
+      );
+    } catch (err) {
+      throw toExamApiError(err);
+    }
+  }
+
+  private headers(): HttpHeaders {
+    return new HttpHeaders({ Authorization: `Bearer ${this.config.demoToken}`, 'X-Tenant-ID': this.config.tenantId });
   }
 }
 

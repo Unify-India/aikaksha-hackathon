@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { ExamParamsCardComponent } from './exam-params-card.component';
 import { evaluateDraft } from '../data/exam-params.rules';
 import { TEACHER_BATCHES } from '../data/teacher-context';
@@ -6,9 +7,10 @@ import { TEACHER_BATCHES } from '../data/teacher-context';
 describe('ExamParamsCardComponent', () => {
   it('renders the read-back with a spoken date and default tags (no locale data needed)', async () => {
     const ev = evaluateDraft(
-      { subject: 'Physics', topic: 'Electrostatics', batchId: 'batch-lakshya-2026', targetQuestions: 15, date: '2026-11-22', startTime: '10:00' },
+      { subject: 'Physics', topic: 'Electrostatics', batchId: 'batch-lakshya-2026', targetQuestions: 15, date: '2026-11-22', startTime: '10:00', duration: 45 },
       { today: '2026-11-21', batches: TEACHER_BATCHES },
     );
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
     const fixture = TestBed.createComponent(ExamParamsCardComponent);
     fixture.componentRef.setInput('evaluation', ev);
     await fixture.whenStable();
@@ -39,5 +41,6 @@ describe('ExamParamsCardComponent', () => {
     await fixture.whenStable();
     expect(el.textContent).toContain('Exam created as draft');
     expect(el.textContent).toContain('exam_9');
+    expect(el.querySelector('a[href="/exam-studio/exam_9"]')?.textContent).toContain('Open in Exam Studio');
   });
 });

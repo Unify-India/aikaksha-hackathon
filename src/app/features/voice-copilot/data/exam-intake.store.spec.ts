@@ -126,7 +126,7 @@ describe('ExamIntakeStore', () => {
     await store.sendText('Physics paper on linear motion for Section A');
     const verdict = live.call(UPDATE_DRAFT_TOOL, { subject: 'Physics', topic: 'Linear Motion', batchId: 'batch-class10-a' });
     expect(verdict['nextStep']).toBe('ask_missing');
-    expect(verdict['missing']).toEqual(['targetQuestions', 'date', 'startTime']);
+    expect(verdict['missing']).toEqual(['targetQuestions', 'date', 'startTime', 'duration']);
     expect(store.draft().batchId).toBe('batch-class10-a');
     expect(store.awaitingConfirmation()).toBe(false);
   });
@@ -159,6 +159,7 @@ describe('ExamIntakeStore', () => {
       targetQuestions: 15,
       date: '2099-01-10',
       startTime: '10:00',
+      duration: 45,
     });
     expect(verdict['nextStep']).toBe('confirm');
     expect(store.awaitingConfirmation()).toBe(true);
@@ -189,6 +190,7 @@ describe('ExamIntakeStore', () => {
       targetQuestions: 20,
       date: '2099-01-10',
       startTime: '09:00',
+      duration: 45,
     });
     store.confirmFromButton();
     expect(store.result()?.examParams.examPattern).toBe('JEE Main');
@@ -231,7 +233,7 @@ describe('ExamIntakeStore', () => {
     await store.sendText('start');
     live.handlers!.onTurnComplete();
     live.handlers!.onInputTranscript('NEET Lakshya electrostatics 15 questions 2099-01-10');
-    live.call(UPDATE_DRAFT_TOOL, { subject: 'Physics', topic: 'Electrostatics', batchId: 'batch-lakshya-2026', targetQuestions: 15, date: '2099-01-10', startTime: '10:00' });
+    live.call(UPDATE_DRAFT_TOOL, { subject: 'Physics', topic: 'Electrostatics', batchId: 'batch-lakshya-2026', targetQuestions: 15, date: '2099-01-10', startTime: '10:00', duration: 45 });
     live.handlers!.onInputTranscript(' at 10 AM'); // transcript lagging behind the tool call
     expect(live.call(FINALIZE_TOOL)['ok']).toBe(false);
 
@@ -242,7 +244,7 @@ describe('ExamIntakeStore', () => {
 
   it('drops a stale explicit end time when only the start time changes', async () => {
     await store.sendText('Lakshya test');
-    live.call(UPDATE_DRAFT_TOOL, { startTime: '10:00', endTime: '11:00' });
+    live.call(UPDATE_DRAFT_TOOL, { startTime: '10:00', endTime: '11:00', duration: 45 });
     live.call(UPDATE_DRAFT_TOOL, { startTime: '09:00' });
     expect(store.draft().endTime).toBeUndefined();
     expect(store.evaluation().examParams.endTime).toBe('09:45');
@@ -301,7 +303,7 @@ describe('ExamIntakeStore', () => {
 
   async function confirmJeeExam() {
     await store.sendText('JEE kinematics test for the Abhimanyu batch');
-    live.call(UPDATE_DRAFT_TOOL, { subject: 'Physics', topic: 'Kinematics', batchId: 'batch-abhimanyu-jee-2027', targetQuestions: 12, date: '2099-01-10', startTime: '09:00' });
+    live.call(UPDATE_DRAFT_TOOL, { subject: 'Physics', topic: 'Kinematics', batchId: 'batch-abhimanyu-jee-2027', targetQuestions: 12, date: '2099-01-10', startTime: '09:00', duration: 45 });
     store.confirmFromButton();
   }
 

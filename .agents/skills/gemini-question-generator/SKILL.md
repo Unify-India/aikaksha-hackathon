@@ -3,7 +3,8 @@ name: gemini-question-generator
 description: >-
   Bilingual question generation skill (English and Hindi) using gemini-2.5-flash with strict
   structured outputs (responseSchema), KaTeX-compatible LaTeX rules, Bloom's taxonomy,
-  distractor rationales, BYOK/Token economy routing, and Angular Form-to-Prompt review gating.
+  step-wise worked solutions, misconception analysis (per-distractor rationales and common
+  answering mistakes), BYOK/Token economy routing, and Angular Form-to-Prompt review gating.
 ---
 
 # Gemini Question Generator Skill
@@ -117,6 +118,32 @@ export const questionBankSchema: Schema = {
         },
         required: ["en", "hi"]
       },
+      solution_steps: {
+        type: Type.ARRAY,
+        description: "Worked solution as ordered steps (2-6). Each step does exactly one thing: identify the concept, write the governing law/formula, substitute, simplify, conclude.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING, description: "Short action title, e.g. 'Apply Gauss's law' (English)" },
+            working: { type: Type.STRING, description: "The working for this step with KaTeX LaTeX, including units (English)" },
+            title_hi: { type: Type.STRING, description: "Hindi title" },
+            working_hi: { type: Type.STRING, description: "Hindi working with the same LaTeX" }
+          },
+          required: ["title", "working"]
+        }
+      },
+      common_misconceptions: {
+        type: Type.ARRAY,
+        description: "1-3 mistakes students typically make WHILE answering this question (conceptual traps, sign/unit slips, misread conditions), each with how to avoid it.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            mistake: { type: Type.STRING, description: "What the student does wrong (English)" },
+            fix: { type: Type.STRING, description: "The correct reasoning or check that avoids it (English)" }
+          },
+          required: ["mistake", "fix"]
+        }
+      },
       distractor_rationales: {
         type: Type.OBJECT,
         properties: {
@@ -137,6 +164,8 @@ export const questionBankSchema: Schema = {
       "hi",
       "correct_option_id",
       "explanation",
+      "solution_steps",
+      "common_misconceptions",
       "distractor_rationales"
     ]
   }
@@ -172,6 +201,19 @@ CRITICAL FORMATTING & LATEX INVARIANTS:
 
 4. DIAGNOSTIC DISTRACTOR RATIONALES:
    - Each incorrect option (distractor) MUST reflect a common pedagogical student misconception (e.g., missing factor of 1/2, inverted sign, forgetting vector dot product direction, wrong unit conversion).
+   - For each distractor, name the exact misconception AND show the wrong working that produces that option, so a teacher can diagnose the student from the option they chose.
+   - For the correct option, state in one line why it is correct.
+
+5. STEP-WISE WORKED SOLUTION ('solution_steps'):
+   - 2 to 6 ordered steps; each step does ONE thing (identify concept -> state law/formula -> substitute with units -> simplify -> conclude).
+   - Every step carries its own LaTeX working; never skip algebra a Class 11-12 student would need.
+   - The last step must state the final answer and match 'correct_option_id' (or the numeric answer) exactly.
+   - 'explanation' is the same solution written as continuous prose; it must agree with the steps.
+
+6. MISCONCEPTIONS WHILE ANSWERING ('common_misconceptions'):
+   - 1 to 3 traps specific to THIS question (not generic advice such as "read carefully").
+   - Each has the 'mistake' (what the student actually does) and the 'fix' (the reasoning or check that avoids it).
+   - Prefer the misconceptions that the distractors are built from, plus any trap in the stem (units, sign conventions, 'NOT'/'EXCEPT' wording, boundary conditions).
 `;
 ```
 
@@ -318,6 +360,8 @@ export interface GeneratedQuestionItem {
   hi: { text: string; options: { id: string; text: string }[] };
   correct_option_id: 'opt1' | 'opt2' | 'opt3' | 'opt4';
   explanation: { en: string; hi: string };
+  solution_steps: { title: string; working: string; title_hi?: string; working_hi?: string }[];
+  common_misconceptions: { mistake: string; fix: string }[];
   distractor_rationales: Record<string, string>;
   reviewStatus: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 }
@@ -349,7 +393,8 @@ export class AiQuestionGeneratorService {
 Teachers must never be forced to copy-paste blindly. The preview screen renders:
 1. **Interactive Language Toggle (`EN` / `HI`)** with KaTeX formula parsing.
 2. **Correct Answer Highlight & Distractor Explanations** (revealing the pedagogical reason why each distractor is incorrect).
-3. **Approve / Regenerate / Inline Edit** buttons before committing to Firestore `question_banks` or the active exam draft.
+3. **Step-wise Solution** (numbered `solution_steps`, KaTeX rendered) and **Common Misconceptions** (`mistake` → `fix`) so the teacher can verify the reasoning, not just the key.
+4. **Approve / Regenerate / Inline Edit** buttons before committing to Firestore `question_banks` or the active exam draft.
 
 ---
 
@@ -359,3 +404,29 @@ Teachers must never be forced to copy-paste blindly. The preview screen renders:
 2. **Single Ground Truth**: The correct answer index in `hi.options` must match `en.options` verbatim in scientific validity.
 3. **KaTeX Linting**: Questions containing illegal environments (`\begin{align}`) are caught by client-side regex and sanitized or re-prompted.
 4. **Token Rate Limit**: Maximum 15 questions per batch invocation to prevent Cloud Function timeout and HTTP 504 gateway errors.
+5. **Solution Completeness**: Reject (and re-prompt) a question whose `solution_steps` has fewer than 2 steps, whose last step does not reach the keyed answer, or whose `distractor_rationales` is missing an option.
+6. **Misconception Quality**: Reject generic `common_misconceptions` ("be careful", "read the question"); each must name a concrete wrong step and its fix.
+
+---
+
+## 7. AI Kaksha Integration (Voice Copilot → create-complete)
+
+The Voice Copilot generates questions in the browser with this skill's system instruction and schema
+(`src/app/features/voice-copilot/data/question-generator.ts`, in parallel batches of at most 5) and sends them to
+`POST /api/exams/create-complete`. That payload has a single `explanation` string per question, so the generator
+renders the structured parts into it as plain text that Exam Studio displays under **Solution**:
+
+```text
+Step 1 – Apply Gauss's law: $\Phi = \frac{q}{\varepsilon_0}$
+Step 2 – Use symmetry: the 6 faces share the flux equally …
+Answer: (B) $\frac{q}{6\varepsilon_0}$
+
+Why the other options are wrong:
+• (A) Takes the total flux instead of one face.
+…
+
+Common misconceptions:
+• Using $\frac{q}{4\pi\varepsilon_0 a^2}$ (Coulomb field) as a flux → Flux through a closed surface depends only on enclosed charge.
+```
+
+Hindi (`hi`) content is generated only when the paper's primary language is Hindi, to keep token cost and latency down.

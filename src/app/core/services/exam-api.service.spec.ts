@@ -30,7 +30,7 @@ describe('ExamApiService', () => {
     expect(req.request.headers.get('X-Tenant-ID')).toBe(environment.examApi.tenantId);
     req.flush({ success: true, examId: 'exam_1', totalQuestions: 3, totalMarks: 12, status: 'draft', createdAt: 'now' }, { status: 201, statusText: 'Created' });
     const res = await pending;
-    expect(res.studentUrl).toBe(`${window.location.origin}/student/exams/exam_1`);
+    expect(res.studentUrl).toBe('https://aikaksha.co.in/student/exams/exam_1');
     expect(res.status).toBe('draft');
   });
 
@@ -54,5 +54,25 @@ describe('ExamApiService', () => {
     const p0 = service.createCompleteExam(payload, 'r');
     http.expectOne(url).error(new ProgressEvent('error'), { status: 0 });
     expect(((await p0.catch((e: unknown) => e)) as Error).message).toContain('Could not reach the exam server');
+  });
+
+  it('lists exams and loads one exam with the demo token, without a request body identity', async () => {
+    const list = service.listExams();
+    const listReq = http.expectOne(`${environment.examApi.baseUrl}/api/exams`);
+    expect(listReq.request.method).toBe('GET');
+    expect(listReq.request.headers.get('Authorization')).toBe(`Bearer ${environment.examApi.demoToken}`);
+    listReq.flush({ exams: [{ id: 'exam_1' }] });
+    expect((await list).map((e) => e.id)).toEqual(['exam_1']);
+
+    const one = service.getExam('exam 1/x');
+    const oneReq = http.expectOne(`${environment.examApi.baseUrl}/api/exams/exam%201%2Fx`);
+    oneReq.flush({ exam: { id: 'exam 1/x' }, questions: [] });
+    expect((await one).exam.id).toBe('exam 1/x');
+  });
+
+  it('maps a 403 ownership error from the server', async () => {
+    const p = service.getExam('theirs');
+    http.expectOne(`${environment.examApi.baseUrl}/api/exams/theirs`).flush({ error: 'FORBIDDEN', message: 'Exam theirs belongs to another teacher' }, { status: 403, statusText: 'Forbidden' });
+    expect(await p.catch((e: unknown) => e)).toMatchObject({ code: 'FORBIDDEN', message: 'Exam theirs belongs to another teacher' });
   });
 });

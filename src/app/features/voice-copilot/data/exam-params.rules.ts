@@ -62,10 +62,11 @@ export interface IDraftEvaluation {
 }
 
 /** The teacher must give these (unless a default applies, e.g. DPP date = today). */
-export const REQUIRED_FIELDS = ['topic', 'batchId', 'subject', 'targetQuestions', 'date', 'startTime'] as const;
+export const REQUIRED_FIELDS = ['topic', 'batchId', 'subject', 'targetQuestions', 'date', 'startTime', 'duration'] as const;
 
 export const DPP_QUESTION_RANGE = { min: 5, max: 10, default: 7 } as const;
-const DEFAULT_DURATION = { CREATE_EXAM: 45, AUTO_DPP: 20 } as const;
+/** Exams never default the duration: the teacher must state it (or give both start and end time). */
+const DPP_DEFAULT_DURATION = 20;
 
 const DIFFICULTIES: readonly DifficultyLevel[] = ['easy', 'medium', 'hard'];
 const QUESTION_TYPES: readonly QuestionType[] = ['MCQ', 'Numeric', 'Short Text', 'Subjective'];
@@ -93,6 +94,13 @@ export function addMinutes(time: string, minutes: number): string | null {
   const total = h * 60 + m + minutes;
   if (total >= 24 * 60) return null;
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** "10:00"–"11:00" → 60; undefined unless both are valid and end is after start. */
+function windowMinutes(start: string | undefined, end: string | undefined): number | undefined {
+  if (!start || !end || !TIME_RE.test(start) || !TIME_RE.test(end)) return undefined;
+  const minutes = minutesOf(end) - minutesOf(start);
+  return minutes > 0 ? minutes : undefined;
 }
 
 function minutesOf(time: string): number {
@@ -143,7 +151,8 @@ export function evaluateDraft(draft: IExamDraft, ctx: IRulesContext): IDraftEval
 
   const subject = draft.subject;
   const language = contentLanguage(subject);
-  const duration = pick('duration', draft.duration, DEFAULT_DURATION[intent]);
+  // Stated by the teacher, or implied by their start and end time; only a DPP falls back to a default.
+  const duration = draft.duration ?? windowMinutes(draft.startTime, draft.endTime) ?? pick('duration', undefined, isDpp ? DPP_DEFAULT_DURATION : undefined);
   const targetQuestions = pick('targetQuestions', draft.targetQuestions, isDpp ? DPP_QUESTION_RANGE.default : undefined);
   const date = pick('date', draft.date, isDpp ? ctx.today : undefined);
   const marking = markingForPattern(batch?.examPattern);
@@ -197,6 +206,7 @@ export function evaluateDraft(draft: IExamDraft, ctx: IRulesContext): IDraftEval
     targetQuestions,
     date,
     startTime: draft.startTime,
+    duration,
   };
   const missing = REQUIRED_FIELDS.filter((f) => values[f] === undefined || values[f] === '');
   const invalid = validate(examParams, intent, ctx).filter((i) => !missing.includes(i.field as (typeof REQUIRED_FIELDS)[number]));

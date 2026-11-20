@@ -3,7 +3,7 @@ import { Component, input, output } from '@angular/core';
 export const DEFAULT_SUGGESTIONS: readonly { icon: string; text: string }[] = [
   { icon: '🧪', text: 'NEET Electrostatics test for Lakshya 2026 tomorrow at 10 AM, 15 questions' },
   { icon: '📘', text: 'Generate a Class 10 Physics question paper on linear motion' },
-  { icon: '⚡', text: 'Aaj Doppler effect aur beats padhaya, Lakshya batch ke liye DPP bana do' },
+  { icon: '⚡', text: 'Algebra ka test bana do, Class 10 Section A, 20 questions, kal 11 baje' },
 ];
 
 @Component({

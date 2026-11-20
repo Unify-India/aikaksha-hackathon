@@ -10,7 +10,7 @@ import { REQUIRED_FIELDS } from './data/exam-params.rules';
 import { TEACHER_BATCHES, TEACHER_NAME } from './data/teacher-context';
 
 /**
- * Voice Copilot: a Gemini-style voice chat that collects exam / DPP parameters
+ * Voice Copilot: a Gemini-style voice chat that collects exam parameters
  * (`IExamParamsPayload` + generation hints) and emits them as JSON.
  */
 @Component({

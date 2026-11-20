@@ -23,6 +23,14 @@ export const routes: Routes = [
     title: 'Exam Studio & Question Bank | AI Kaksha',
   },
   {
+    path: 'exam-studio/:examId',
+    loadComponent: () =>
+      import('./features/exam-studio/exam-studio.component').then(
+        (m) => m.ExamStudioComponent
+      ),
+    title: 'Exam Studio & Question Bank | AI Kaksha',
+  },
+  {
     path: 'review-gate',
     // Review Gate now lists low-confidence (< 90%) graded answers for teacher approval.
     // The earlier exam-publishing mock-up (features/exam-studio/review-gate.component.ts) is kept, unused.
