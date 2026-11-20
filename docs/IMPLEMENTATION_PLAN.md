@@ -21,7 +21,7 @@
 | 11 | Parallel generation batches, `thinkingBudget`, request-ID idempotency | 15 questions + audit could take 30–60 s; retries could duplicate questions |
 | 12 | Hour-0 **API contract handshake**; frontend builds against `mcp.mode: 'mock'` | Server can't import Angular models; avoids painful integration at hour 3:30 |
 | 13 | Deployment owned by **Hitesh**, who deploys early (before 3:30); deploy via `--source` + Secret Manager; **frontend on Firebase Hosting** | v1 had backwards ownership, deprecated `gcr.io`, no API-key wiring, and no frontend hosting |
-| 14 | Added an accessibility checklist and minimal Vitest tests | CLAUDE.md requires AXE/WCAG AA; answer stripping is the headline security claim |
+| 14 | Added an accessibility checklist and minimal Vitest tests | AGENTS.md requires AXE/WCAG AA; answer stripping is the headline security claim |
 
 ---
 
@@ -256,7 +256,7 @@ Deploy with `firebase deploy --only firestore:rules`. Show this file in the demo
 - *Should (Hitesh, `server/src/student/submit.ts`; Sandeep mounts it)*: `POST /api/student/exams/:examId/submit` rejects with `403 WINDOW_CLOSED` when `Date.now() > endTimestampMs`. This server-clock check replaces the RTDB time lock.
 
 #### *Stretch* `server/src/mcp/server.ts`
-- `@modelcontextprotocol/sdk` with Streamable HTTP transport at `/mcp`, registering the same tool functions. Lets you show an external MCP client (e.g. Claude Desktop / MCP Inspector) driving the tools. ~45 min.
+- `@modelcontextprotocol/sdk` with Streamable HTTP transport at `/mcp`, registering the same tool functions. Lets you show an external MCP client (e.g. MCP Inspector) driving the tools. ~45 min.
 
 ---
 
@@ -283,7 +283,7 @@ Deploy with `firebase deploy --only firestore:rules`. Show this file in the demo
 - Add `mcp.demoToken`.
 
 #### [NEW] `src/app/core/services/mcp-client.service.ts`
-- `@Service()` (per CLAUDE.md), `HttpClient`, sends `Authorization: Bearer <demoToken>`.
+- `@Service()` (per AGENTS.md), `HttpClient`, sends `Authorization: Bearer <demoToken>`.
 - In `mock` mode, returns canned responses with a realistic delay.
 - Methods:
   - `resolveTeacherContext(): Observable<IBatch[]>`
@@ -333,7 +333,7 @@ Deploy with `firebase deploy --only firestore:rules`. Show this file in the demo
 - Rubric panel built with **Signal Forms**: per-step override inputs (0…max). `computed()` total updates live, and the overlay callouts re-render.
 - "Needs review" banner when `needsReview`. "Confirm Marks" button.
 
-#### Accessibility checklist (CLAUDE.md: AXE + WCAG AA)
+#### Accessibility checklist (AGENTS.md: AXE + WCAG AA)
 - [ ] Colour is never the only signal (✓/✗ icons + text)
 - [ ] Toasts in an `aria-live` region
 - [ ] File drop usable by keyboard
@@ -420,7 +420,7 @@ gcloud run deploy "$SERVICE_NAME" \
 
 ## 🤖 Shared Reference for AI Coding Agents
 
-Every team member's agent should read this section, plus `CLAUDE.md` at the repo root (Angular conventions), before writing code.
+Every team member's agent should read this section, plus `AGENTS.md` at the repo root (Angular conventions), before writing code.
 
 ### Reuse existing types — don't redefine them
 These already exist in `src/app/shared/models/` and must be the basis of `api.contracts.ts`:
@@ -478,7 +478,7 @@ Commit a `server/.env.example` with these names and no values.
 
 ### Conventions
 - **Server**: TypeScript strict mode, ES modules, zod validation on every request body, no `any`. Errors are returned as `{ error: { code: 'UNAUTHENTICATED' | 'VALIDATION_FAILED' | 'NOT_FOUND' | 'IDEMPOTENCY_CONFLICT' | 'WINDOW_CLOSED' | 'UPSTREAM_ERROR', message } }`.
-- **Angular**: follow `CLAUDE.md` (signals, `input()`/`output()`, `@Service()`, native control flow, no `ngClass`/`ngStyle`, AXE + WCAG AA).
+- **Angular**: follow `AGENTS.md` (signals, `input()`/`output()`, `@Service()`, native control flow, no `ngClass`/`ngStyle`, AXE + WCAG AA).
 - **Git**: one branch per person (`feat/<name>-<topic>`), small PRs into `main`, merged at every checkpoint. **Only edit files you own**; for anything shared (contracts, models, `app.routes.ts`), ask the owner.
 
 ---

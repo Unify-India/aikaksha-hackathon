@@ -11,7 +11,7 @@
 AI Kaksha is an AI-powered education operating system designed to eradicate teacher prep toil, grading fatigue, and administrative chaos for educators in Tier-2/3/4 Indian coaching institutes and schools.
 
 This master plan establishes the end-to-end technical specifications for:
-1. **The MCP (Model Context Protocol) Server & Gemini Connector**: Connecting AI agents (Antigravity, Claude, external MCP clients) and Gemini 2.5 Flash to authenticated education operations.
+1. **The MCP (Model Context Protocol) Server & Gemini Connector**: Connecting AI agents (Antigravity, external MCP clients) and Gemini 2.5 Flash to authenticated education operations.
 2. **Dual-Interface Strategy**: Real MCP protocol endpoints (`/mcp` via `@modelcontextprotocol/sdk`) alongside direct HTTP & SSE streaming endpoints (`/api/workflows/*`) for real-time frontend telemetry.
 3. **5-Tool Autonomous Pipeline**: Deterministic state transitions from voice intake to tamper-proof publication.
 4. **Three-Way Security Partition**: Physical isolation of metadata (`master_exams`), sanitized student questions (`exam_questions`), and teacher-only keys (`answerKey`).
@@ -32,7 +32,7 @@ This master plan establishes the end-to-end technical specifications for:
                                       │
 ┌─────────────────────────┐           │           ┌─────────────────────────┐
 │ External AI Agents      │           │           │ MCP Inspector / CLI     │
-│ (Antigravity, Claude)   │           │           │ (Claude Desktop, etc.)  │
+│ (Antigravity, others)   │           │           │ (desktop clients, etc.) │
 └────────────┬────────────┘           │           └────────────┬────────────┘
              │                        │                        │
              └────────► Remote MCP Transport (/mcp) ◄──────────┘
@@ -67,7 +67,7 @@ This master plan establishes the end-to-end technical specifications for:
 | :--- | :--- | :--- |
 | **Standard** | Model Context Protocol JSON-RPC 2.0 | HTTP REST + W3C Server-Sent Events (`EventSource`) |
 | **Transport** | `SSEServerTransport` (`GET /mcp/sse`, `POST /mcp/messages`) | HTTP POST initial dispatch + `GET /runs/:runId/events` |
-| **Clients** | Antigravity IDE, Claude Desktop, Vertex AI Agent MCP | Angular 22 Web App, PWA, Mobile Web |
+| **Clients** | Antigravity IDE, Vertex AI Agent MCP | Angular 22 Web App, PWA, Mobile Web |
 | **Telemetry** | MCP Notifications (`notifications/message`) | SSE events (`tool_started`, `tool_finished`, `run_completed`) |
 | **Authentication**| Bearer Token in SSE query param or HTTP header | Bearer Token in HTTP header or `?token=` query param |
 

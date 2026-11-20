@@ -199,6 +199,17 @@ html[data-palette='iris'] {
     display: block;
   }
 
+  /* One very long word (an id, a URL, an error code) must wrap instead of widening the whole page.
+     `anywhere` also lets flex rows shrink the text, which `break-word` does not. */
+  main :where(p, li, dt, dd, h1, h2, h3, h4, label, figcaption, summary, blockquote),
+  main :where([role='alert'], [role='status']) > span {
+    overflow-wrap: anywhere;
+  }
+
+  main :where([role='alert'], [role='status']) > span {
+    min-width: 0;
+  }
+
   /* Headings carry the typographic contrast: serif titles over a sans interface. */
   h1,
   h2 {

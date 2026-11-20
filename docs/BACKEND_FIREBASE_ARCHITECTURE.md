@@ -18,7 +18,7 @@ AI Kaksha is an education operations platform designed to drastically reduce tea
 ### 1.1 Dual-Interface Strategy (Remote MCP vs. Application Web Client)
 - **Gemini Mobile / Remote MCP Constraint**: As identified in project guidelines, consumer Gemini mobile clients do not yet support arbitrary custom remote MCP servers without dedicated host authorization.
 - **Architectural Solution**: AI Kaksha provides a dual-model access boundary:
-  - **Standard MCP Protocol Gateway** (`/mcp`): Implements `@modelcontextprotocol/sdk` over Server-Sent Events (`SSEServerTransport`) for standard MCP clients (Antigravity CLI, Claude Desktop, Vertex AI Agent MCP connectors).
+  - **Standard MCP Protocol Gateway** (`/mcp`): Implements `@modelcontextprotocol/sdk` over Server-Sent Events (`SSEServerTransport`) for standard MCP clients (Antigravity CLI, Vertex AI Agent MCP connectors).
   - **Direct REST & SSE Orchestration Gateway** (`/api/workflows/*`, `/api/tools/*`): Optimized for the Angular frontend, providing low-latency execution and live event streaming.
 
 ### 1.2 MCP Tool Catalog & Signatures

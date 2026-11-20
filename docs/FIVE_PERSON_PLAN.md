@@ -22,7 +22,7 @@
 | Auth described honestly as a **demo token** | v1 claimed forged-token rejection while hardcoding the teacher |
 | **`firestore.rules` deny-all** + a student endpoint that proves answers are stripped | Makes the partition claim demonstrable |
 | Demo script reordered and latency claims made realistic | v1 promised "<2 s" and "15 s" for multi-call Gemini flows |
-| Accessibility checks added for Paritosh and Aditya | CLAUDE.md requires AXE + WCAG AA |
+| Accessibility checks added for Paritosh and Aditya | AGENTS.md requires AXE + WCAG AA |
 
 ---
 
@@ -184,7 +184,7 @@ gantt
 ## 🤖 6. AI Agent Briefs (paste into your own agent)
 
 ### How to use these
-1. Give your agent **three things**: this file, `docs/IMPLEMENTATION_PLAN.md` (especially **"Shared Reference for AI Coding Agents"** and the components listed in your brief), and the repo's `CLAUDE.md`.
+1. Give your agent **three things**: this file, `docs/IMPLEMENTATION_PLAN.md` (especially **"Shared Reference for AI Coding Agents"** and the components listed in your brief), and the repo's `AGENTS.md`.
 2. Then paste **your brief below** as the task.
 3. Your agent should **only edit files listed under "You own"**. If it needs a change elsewhere, it should tell you, and you ask the owner.
 
@@ -278,7 +278,7 @@ red-pen overlay.
 
 Read first: docs/IMPLEMENTATION_PLAN.md → "What Changed", "Shared Reference for AI Coding Agents",
 Component 2 (evaluation-multimodal prompt), Component 4, Component 6 (evaluation-cockpit section
-+ accessibility checklist). Also CLAUDE.md for Angular rules.
++ accessibility checklist). Also AGENTS.md for Angular rules.
 
 You own: server/src/evaluation/**, server/src/prompts/evaluation-multimodal.prompt.ts,
 src/app/features/evaluation/** (split into small child components),
@@ -314,7 +314,7 @@ Review Gate) plus the shared client and state services.
 
 Read first: docs/IMPLEMENTATION_PLAN.md → "What Changed", "Shared Reference for AI Coding Agents",
 Component 0 (contracts/RunEvent), Component 5, Component 6 (all except evaluation),
-accessibility checklist. CLAUDE.md rules are mandatory (signals, @Service(), input()/output(),
+accessibility checklist. AGENTS.md rules are mandatory (signals, @Service(), input()/output(),
 native control flow, no ngClass/ngStyle, AXE + WCAG AA).
 
 You own: src/environments/**, src/app/core/services/mcp-client.service.ts,
