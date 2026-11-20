@@ -54,6 +54,8 @@ functions/.env.*
 !functions/.env.example
 service-account*.json
 *-adminsdk-*.json
+# Firebase
+.firebase/
 firebase-debug.log
 firebase-debug.*.log
 firestore-debug.log

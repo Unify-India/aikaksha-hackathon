@@ -2,6 +2,19 @@
 
 Repository-ready starter kit for the AI Kaksha hackathon POC.
 
+## 🌐 Live Deployments
+
+| Component | Target URL |
+| :--- | :--- |
+| **Web Application (Production)** | [https://abhyas-unify.web.app](https://abhyas-unify.web.app) |
+| **Web Application (Firebase App)** | [https://abhyas-unify.firebaseapp.com](https://abhyas-unify.firebaseapp.com) |
+| **Backend REST & SSE API** | `https://asia-south1-abhyas-unify.cloudfunctions.net/api` |
+| **Model Context Protocol (MCP) Server** | `https://asia-south1-abhyas-unify.cloudfunctions.net/api/mcp` |
+| **API Health Check** | [https://asia-south1-abhyas-unify.cloudfunctions.net/api/health](https://asia-south1-abhyas-unify.cloudfunctions.net/api/health) |
+| **GCP / Firebase Project** | `abhyas-unify` (Region: `asia-south1` / Mumbai) |
+
+---
+
 ## What this kit does
 
 - Establishes project context and engineering guardrails for Antigravity agents.
