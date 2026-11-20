@@ -9,7 +9,7 @@ This skill guides developers through designing, building, and deploying a Model 
 
 ## 1. Overview & Architecture
 
-An MCP (Model Context Protocol) server acts as a bridge between an AI Assistant/Agent (such as Antigravity, Claude, or custom client) and external tools/data sources.
+An MCP (Model Context Protocol) server acts as a bridge between an AI Assistant/Agent (such as Antigravity or a custom client) and external tools/data sources.
 
 ```
 +--------------------------------------------------------------+

@@ -81,5 +81,6 @@ The populated states of the evaluation screens (graded sheets, the results table
 ## Things to know
 
 - **Fonts load from Google Fonts** (`src/index.html`). With no internet, the browser falls back to Georgia and the system sans, so layout still works but looks plainer. For a demo on unreliable Wi-Fi, load the page once beforehand, or self-host the fonts.
+- **No sideways page scroll.** Message text (`p`, `li`, `dd`, headings, labels, and the text inside alert/status banners) wraps even a single very long word, such as an id or an error code, and the app shell clips horizontal overflow. Wide components such as the results table and the PDF viewer keep their own scrolling. Without this, a long unbroken word in an error banner stretched the whole page.
 - **Small buttons are 36 px tall** (above the WCAG 2.2 AA minimum of 24 px), a trade-off for a dense desktop tool. Nav links, the logo and the header controls are 44 px.
 - **To undo**: `src/styles.css`, `src/index.html`, `src/app/app.html`, the shared components and `ThemeService` carry the visual system. The rest are screen templates.
