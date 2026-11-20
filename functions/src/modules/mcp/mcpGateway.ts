@@ -6,6 +6,7 @@ import { db } from '../../config/firebase.js';
 import { FIRESTORE_COLLECTIONS } from '../../config/index.js';
 import type { IExam, IExamQuestion, IMCPToolCall } from '../../types/index.js';
 import { computeDraftHash } from '../exams/examPublishCallable.js';
+import { createAndSegregateExam } from '../exams/examTools.js';
 
 export const mcpApp = express.default();
 
@@ -320,6 +321,21 @@ mcpApp.post('/v1/tools', authenticateRequest, async (req: express.Request, res: 
           status: targetStatus,
           draftHash: computedHash,
         });
+        return;
+      }
+
+      case 'create_complete_exam': {
+        const payload = toolCall.input;
+        if (!payload) {
+          res.status(400).json({
+            error: 'INVALID_ARGUMENT',
+            message: 'Payload with examParams and questions is required',
+          });
+          return;
+        }
+
+        const result = await createAndSegregateExam(teacherId, payload);
+        res.json(result);
         return;
       }
 
