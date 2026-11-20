@@ -20,7 +20,7 @@ export const environment: AppEnvironment = {
     liveModel: 'gemini-3.8-live',
   },
   examApi: {
-    baseUrl: 'https://us-central1-abhyas-unify.cloudfunctions.net/api',
+    baseUrl: 'https://asia-south1-abhyas-unify.cloudfunctions.net/api',
     demoToken: 'demo-teacher-token-alpha',
     tenantId: 'institute-alpha-delhi',
   },

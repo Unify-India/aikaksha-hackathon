@@ -47,6 +47,10 @@ describe('ExamApiService', () => {
     http.expectOne(url).flush('<html>Not Found</html>', { status: 404, statusText: 'Not Found' });
     expect(((await p404.catch((e: unknown) => e)) as Error).message).toContain('not deployed yet');
 
+    const p403 = service.createCompleteExam(payload, 'r');
+    http.expectOne(url).flush('<html>Forbidden</html>', { status: 403, statusText: 'Forbidden' });
+    expect(((await p403.catch((e: unknown) => e)) as Error).message).toContain('not publicly invokable');
+
     const p0 = service.createCompleteExam(payload, 'r');
     http.expectOne(url).error(new ProgressEvent('error'), { status: 0 });
     expect(((await p0.catch((e: unknown) => e)) as Error).message).toContain('Could not reach the exam server');

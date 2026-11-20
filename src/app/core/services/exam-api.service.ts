@@ -67,7 +67,12 @@ export function toExamApiError(err: unknown): ExamApiError {
     if (body && typeof body === 'object' && typeof body.message === 'string') {
       return new ExamApiError(body.message, body.error ?? `HTTP_${err.status}`, err.status, body.details ?? []);
     }
-    const hint = err.status === 404 ? ' The create-complete endpoint is not deployed yet.' : '';
+    const hint =
+      err.status === 404
+        ? ' The create-complete endpoint is not deployed yet.'
+        : err.status === 401 || err.status === 403
+          ? ' The Cloud Function rejected the call before the app saw it: it is not publicly invokable (grant allUsers the Cloud Functions Invoker role) or the token is wrong.'
+          : '';
     return new ExamApiError(`HTTP ${err.status}: ${err.statusText || 'Server error'}.${hint}`, `HTTP_${err.status}`, err.status);
   }
   return new ExamApiError(err instanceof Error ? err.message : String(err), 'UNKNOWN', 0);
