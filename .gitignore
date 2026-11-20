@@ -42,3 +42,19 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Secrets and local environment files: never commit these
+.env
+.env.*
+!.env.example
+*.secret.local
+.secret.local
+functions/.env
+functions/.env.*
+!functions/.env.example
+service-account*.json
+*-adminsdk-*.json
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
