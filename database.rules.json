@@ -1,0 +1,23 @@
+{
+  "rules": {
+    "exam_submissions": {
+      "$examId": {
+        ".read": "auth != null",
+        "$studentId": {
+          ".read": "auth != null && (auth.uid == $studentId || auth.token.role == 'teacher' || auth.token.role == 'admin')",
+          ".write": "auth != null && auth.uid == $studentId && (!data.exists() || (newData.child('timestampMs').exists() && newData.child('endTimestampMs').exists() && now <= newData.child('endTimestampMs').val()))",
+          ".validate": "newData.hasChildren(['studentId', 'examId', 'timestampMs', 'endTimestampMs']) && newData.child('studentId').val() == auth.uid"
+        }
+      }
+    },
+    "proctoring": {
+      "$examId": {
+        ".read": "auth != null",
+        "$studentId": {
+          ".read": "auth != null && (auth.uid == $studentId || auth.token.role == 'teacher' || auth.token.role == 'admin')",
+          ".write": "auth != null && auth.uid == $studentId"
+        }
+      }
+    }
+  }
+}

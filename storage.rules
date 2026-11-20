@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.get('role', '') == 'admin';
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && (
+        request.auth.token.get('role', '') == 'teacher' ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'teacher'
+      );
+    }
+
+    // Answer sheet uploads under answer_sheets/{teacherId}/{submissionId}
+    match /answer_sheets/{teacherId}/{submissionId}/{fileName} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == teacherId || 
+        isAdmin() ||
+        firestore.get(/databases/(default)/documents/submissions/$(submissionId)).data.studentId == request.auth.uid
+      );
+      allow write: if isAuthenticated() && (
+        request.auth.uid == teacherId ||
+        isAdmin() ||
+        request.auth.uid == request.resource.metadata.studentId
+      ) && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType.matches('(image/.*|application/pdf)');
+    }
+
+    // Question media / Diagrams
+    match /questions/{questionId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if (isTeacher() || isAdmin())
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('(image/.*|application/pdf)');
+    }
+
+    // Default fallback deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

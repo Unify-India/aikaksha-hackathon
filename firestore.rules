@@ -1,0 +1,109 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.get('role', '') == 'admin' || 
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && (
+        request.auth.token.get('role', '') == 'teacher' || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'teacher')
+      );
+    }
+
+    function isTeacherOfBatch(batchId) {
+      let batchDoc = get(/databases/$(database)/documents/batches/$(batchId)).data;
+      return isAuthenticated() && (
+        batchDoc.teacherId == request.auth.uid ||
+        batchDoc.get('managerIds', []).hasAny([request.auth.uid])
+      );
+    }
+
+    // Admins
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAuthenticated();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Batches
+    match /batches/{batchId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.teacherId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.teacherId == request.auth.uid);
+    }
+
+    // Master Exams (metadata partition - questions and answer keys stripped)
+    match /master_exams/{examId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isAdmin() || isTeacher());
+      allow update, delete: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.teacherId == request.auth.uid
+      );
+    }
+
+    // Exam Questions (student visible questions partition - strictly NO correct answers or explanations)
+    match /exam_questions/{examId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || (isTeacher() && (
+        !exists(/databases/$(database)/documents/master_exams/$(examId)) ||
+        get(/databases/$(database)/documents/master_exams/$(examId)).data.teacherId == request.auth.uid
+      ));
+    }
+
+    // Answer Key (strictly protected partition - teacher & admin only, or student after exam ends)
+    match /answerKey/{examId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        isTeacher() || 
+        get(/databases/$(database)/documents/master_exams/$(examId)).data.get('status', '') in ['past', 'open']
+      );
+      allow write: if isAdmin() || (isTeacher() && (
+        !exists(/databases/$(database)/documents/master_exams/$(examId)) ||
+        get(/databases/$(database)/documents/master_exams/$(examId)).data.teacherId == request.auth.uid
+      ));
+    }
+
+    // Submissions / Evaluation
+    match /submissions/{submissionId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.studentId == request.auth.uid || 
+        resource.data.teacherId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.teacherId == request.auth.uid
+      );
+    }
+
+    // Review Gates
+    match /review_gates/{gateId} {
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.teacherId == request.auth.uid);
+      allow write: if isAuthenticated() && (isAdmin() || request.resource.data.teacherId == request.auth.uid);
+    }
+  }
+}
