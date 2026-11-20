@@ -17,6 +17,12 @@ export const environment: AppEnvironment = {
     apiKey: 'YOUR_PRODUCTION_GEMINI_API_KEY',
     model: 'gemini-2.5-flash',
     endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+    liveModel: 'gemini-3.8-live',
+  },
+  examApi: {
+    baseUrl: 'https://asia-south1-abhyas-unify.cloudfunctions.net/api',
+    demoToken: 'demo-teacher-token-alpha',
+    tenantId: 'institute-alpha-delhi',
   },
   mcp: {
     serverUrl: 'https://api.ai-kaksha.internal/mcp',
