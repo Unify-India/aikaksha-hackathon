@@ -11,6 +11,7 @@ import { mcpApp } from './modules/mcp/mcpGateway.js';
 import { workflowRouter } from './modules/workflows/routes.js';
 import { studentRouter } from './modules/student/routes.js';
 import { authMiddleware } from './auth/middleware.js';
+import { ExamAccessError, getTeacherExam, listTeacherExams } from './modules/exams/examQueries.js';
 import {
   resolveTeacherContext,
   createExam,
@@ -129,6 +130,33 @@ apiApp.post('/api/exams/create-complete', authMiddleware, async (req, res) => {
     const errorMsg = err instanceof Error ? err.message : String(err);
     logger.error('Failed to create complete exam:', errorMsg);
     res.status(400).json({ error: 'CREATION_FAILED', message: errorMsg });
+  }
+});
+
+// Exam Studio (teacher view): list the teacher's exams, and one exam with questions + answer key.
+apiApp.get('/api/exams', authMiddleware, async (req, res) => {
+  try {
+    const teacherId = req.auth?.teacherId || 'teacher-sharma-101';
+    res.json({ exams: await listTeacherExams(teacherId) });
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error('Failed to list exams:', errorMsg);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: errorMsg });
+  }
+});
+
+apiApp.get('/api/exams/:examId', authMiddleware, async (req, res) => {
+  try {
+    const teacherId = req.auth?.teacherId || 'teacher-sharma-101';
+    res.json(await getTeacherExam(teacherId, req.params.examId));
+  } catch (err: unknown) {
+    if (err instanceof ExamAccessError) {
+      res.status(err.code === 'EXAM_NOT_FOUND' ? 404 : 403).json({ error: err.code, message: err.message });
+      return;
+    }
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error(`Failed to load exam ${req.params.examId}:`, errorMsg);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: errorMsg });
   }
 });
 
