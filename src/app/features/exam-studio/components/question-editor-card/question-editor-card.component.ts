@@ -1,13 +1,12 @@
 import { Component, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IExamQuestion, IOptionContent } from '../../../../shared/models/exam.model';
+import { IExamQuestion } from '../../../../shared/models/exam.model';
 import { AppButtonComponent } from '../../../../shared/components/app-button/app-button.component';
-import { StatusBadgeComponent } from '../../../../shared/components/status-badge.component';
 
 @Component({
   selector: 'app-question-editor-card',
   standalone: true,
-  imports: [CommonModule, AppButtonComponent, StatusBadgeComponent],
+  imports: [CommonModule, AppButtonComponent],
   template: `
     <div
       class="group relative rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all duration-200 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-800"

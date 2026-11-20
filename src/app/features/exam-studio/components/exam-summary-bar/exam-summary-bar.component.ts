@@ -1,6 +1,6 @@
 import { Component, input, output, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IExam } from '../../../../shared/models/exam.model';
+import { IExam, ExamStatus } from '../../../../shared/models/exam.model';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge.component';
 import { AppButtonComponent } from '../../../../shared/components/app-button/app-button.component';
 
@@ -19,7 +19,7 @@ import { AppButtonComponent } from '../../../../shared/components/app-button/app
             </h1>
             <app-status-badge
               [label]="exam()?.status || 'draft'"
-              [variant]="exam()?.status === 'published' ? 'success' : 'warning'"
+              [variant]="isLiveOrOpen() ? 'success' : 'warning'"
             />
           </div>
 
@@ -108,5 +108,10 @@ export class ExamSummaryBarComponent {
   public countMismatch = computed(() => {
     const target = this.exam()?.targetQuestions ?? 0;
     return this.actualCount() !== target;
+  });
+
+  public isLiveOrOpen = computed(() => {
+    const status = this.exam()?.status;
+    return status === ExamStatus.Live || status === ExamStatus.Open || status === ExamStatus.Validated;
   });
 }
