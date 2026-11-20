@@ -1,0 +1,14 @@
+{
+  "package": "AI Kaksha Antigravity POC Final Kit",
+  "file_count_excluding_manifest": 42,
+  "includes": [
+    "Antigravity project rules and agent guidance",
+    "10 specialist skills and repeatable workflows",
+    "Abhyas voice exam source contract and four MCP tool contracts",
+    "security, data model, architecture and repository inspection docs",
+    "Ubuntu setup and validation scripts",
+    "eight-hour implementation plan and demo runbook",
+    "kickoff prompt and environment template"
+  ],
+  "important_limit": "Abhyas source repositories have not been inspected in this chat; source-specific adapters and schemas must be verified before implementation."
+}
