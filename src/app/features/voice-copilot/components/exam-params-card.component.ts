@@ -62,7 +62,12 @@ interface IRow {
             @case ('created') {
               @if (creation().exam; as exam) {
                 <div class="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
-                  <p class="font-semibold"><span aria-hidden="true">✅</span> Exam created as {{ exam.status }}</p>
+                  <p class="flex items-center gap-2 font-semibold">
+            <svg aria-hidden="true" class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            Exam created as {{ exam.status }}
+          </p>
                   <p class="mt-1">{{ exam.totalQuestions }} questions · {{ exam.totalMarks }} marks · ID <span class="font-mono">{{ exam.examId }}</span></p>
                   <p class="mt-1 break-all">Student link: <a class="font-medium underline underline-offset-2" [href]="exam.studentUrl" target="_blank" rel="noopener">{{ exam.studentUrl }}</a></p>
                 </div>

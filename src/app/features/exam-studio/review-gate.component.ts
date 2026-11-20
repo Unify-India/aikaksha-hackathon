@@ -1,78 +1,103 @@
 import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { StatusBadgeComponent } from '../../shared/components/status-badge.component';
-import { StatCardComponent } from '../../shared/components/stat-card.component';
 import { ITeacherReviewGateAssignment, ReviewStatus } from '../../shared/models/review-gate.model';
 
 @Component({
   selector: 'app-review-gate',
   standalone: true,
-  imports: [CommonModule, StatusBadgeComponent, StatCardComponent],
+  imports: [CommonModule],
   template: `
-    <div class="space-y-6">
-      <div class="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-xs md:flex-row md:items-center md:justify-between dark:border-slate-800 dark:bg-slate-900">
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Teacher Human-in-the-Loop Review Gate</h1>
-            <app-status-badge label="Pending Teacher Sign-off" variant="warning" />
+    <div class="space-y-8">
+      <section
+        class="relative overflow-hidden rounded-2xl hero-surface p-6 text-white shadow-xl shadow-indigo-900/25 md:p-8"
+        aria-labelledby="gate-title"
+      >
+        <div
+          class="pointer-events-none absolute inset-0 opacity-[0.18]"
+          style="background-image: radial-gradient(circle at 1px 1px, #fff 1px, transparent 0); background-size: 22px 22px;"
+          aria-hidden="true"
+        ></div>
+
+        <div class="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div class="max-w-xl">
+            <div class="flex flex-wrap items-center gap-3">
+              <h1 id="gate-title" class="text-3xl md:text-4xl">Review gate</h1>
+              <span class="rounded-md bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white ring-1 ring-inset ring-white/30">Waiting for your sign-off</span>
+            </div>
+            <p class="mt-3 text-sm leading-relaxed text-indigo-100">
+              AI-drafted exams cannot be assigned to students until you confirm them here.
+            </p>
           </div>
-          <p class="mt-1 text-sm text-slate-500">
-            Mandatory architectural gate: AI autonomous drafts cannot be assigned or scheduled to students without verified teacher confirmation.
-          </p>
-        </div>
 
-        <div class="flex items-center gap-2">
-          <button
-            (click)="rejectAssignment()"
-            class="rounded-lg border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40 cursor-pointer"
-          >
-            Reject & Regenerate
-          </button>
-          <button
-            (click)="approveAndPublish()"
-            [disabled]="isPublished()"
-            class="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white shadow-xs hover:bg-emerald-500 disabled:opacity-50 cursor-pointer"
-          >
-            {{ isPublished() ? 'Exam Published' : 'Approve & Commit Exam' }}
-          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              (click)="rejectAssignment()"
+              class="min-h-11 cursor-pointer rounded-md border border-white/50 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/15"
+            >
+              Reject and regenerate
+            </button>
+            <button
+              type="button"
+              (click)="approveAndPublish()"
+              [disabled]="isPublished()"
+              class="min-h-11 cursor-pointer rounded-md bg-emerald-700 px-5 py-2 text-sm font-medium text-white shadow-md shadow-emerald-950/30 transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {{ isPublished() ? 'Exam published' : 'Approve and publish' }}
+            </button>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Gate Audit Cards -->
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <app-stat-card title="Gate Verification" [value]="assignment().status | uppercase" subtitle="Teacher Sign-Off Required" icon="🔐" />
-        <app-stat-card title="Teacher ID" [value]="assignment().teacherId" subtitle="Resolved Auth Identity" icon="👨‍🏫" />
-        <app-stat-card title="Batch Target" [value]="assignment().batchName" subtitle="45 Students Enrolled" icon="🎓" />
-        <app-stat-card title="Content Hash" [value]="assignment().contentHash.slice(0, 10) + '...'" subtitle="SHA-256 Immutability Check" icon="🛡️" />
-      </div>
+      <dl class="stagger grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 lg:grid-cols-4 dark:border-slate-800 dark:bg-slate-800">
+        <div class="border-t-2 border-t-indigo-500 dark:border-t-indigo-400 bg-white px-4 py-3 dark:bg-slate-900">
+          <dt class="text-xs text-slate-600 dark:text-slate-400">Gate status</dt>
+          <dd class="mt-1 font-serif text-2xl font-semibold leading-tight capitalize">{{ assignment().status }}</dd>
+          <dd class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Needs teacher sign-off</dd>
+        </div>
+        <div class="border-t-2 border-t-violet-500 dark:border-t-violet-400 bg-white px-4 py-3 dark:bg-slate-900">
+          <dt class="text-xs text-slate-600 dark:text-slate-400">Teacher</dt>
+          <dd class="mt-1 font-serif text-2xl font-semibold leading-tight">{{ assignment().teacherName }}</dd>
+          <dd class="mt-0.5 font-mono text-xs text-slate-600 dark:text-slate-400">{{ assignment().teacherId }}</dd>
+        </div>
+        <div class="border-t-2 border-t-sky-500 dark:border-t-sky-400 bg-white px-4 py-3 dark:bg-slate-900">
+          <dt class="text-xs text-slate-600 dark:text-slate-400">Batch</dt>
+          <dd class="mt-1 font-serif text-2xl font-semibold leading-tight">{{ assignment().batchName }}</dd>
+          <dd class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">45 students enrolled</dd>
+        </div>
+        <div class="border-t-2 border-t-orange-400 dark:border-t-orange-400 bg-white px-4 py-3 dark:bg-slate-900">
+          <dt class="text-xs text-slate-600 dark:text-slate-400">Content hash</dt>
+          <dd class="mt-1 font-mono text-lg leading-tight">{{ assignment().contentHash.slice(0, 10) }}…</dd>
+          <dd class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">SHA-256 of the draft</dd>
+        </div>
+      </dl>
 
-      <!-- Review Checklist & Approval Surface -->
-      <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-        <h2 class="text-base font-bold text-slate-900 dark:text-white">Pre-Publish Safety & Policy Check</h2>
-        <div class="mt-4 space-y-3">
-          <label class="flex items-start gap-3 text-sm cursor-pointer">
-            <input type="checkbox" checked class="mt-1 rounded text-indigo-600 focus:ring-indigo-500" />
-            <div>
-              <span class="font-medium text-slate-800 dark:text-slate-200">Syllabus & Difficulty Alignment</span>
-              <p class="text-xs text-slate-500">Questions strictly match NCERT Class 12 Electrostatics medium difficulty.</p>
-            </div>
+      <section class="lift rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="checks-title">
+        <h2 id="checks-title" class="text-xl">Before you publish</h2>
+        <div class="mt-4 space-y-4">
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input type="checkbox" checked class="mt-1 h-4 w-4 cursor-pointer accent-indigo-700" />
+            <span>
+              <span class="block font-medium">Syllabus and difficulty match</span>
+              <span class="block text-xs text-slate-600 dark:text-slate-400">The questions follow NCERT Class 12 Electrostatics at medium difficulty.</span>
+            </span>
           </label>
-          <label class="flex items-start gap-3 text-sm cursor-pointer">
-            <input type="checkbox" checked class="mt-1 rounded text-indigo-600 focus:ring-indigo-500" />
-            <div>
-              <span class="font-medium text-slate-800 dark:text-slate-200">Answer Key Partition Verified</span>
-              <p class="text-xs text-slate-500">Correct answers are isolated in teacher answerKey collection with server security rules.</p>
-            </div>
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input type="checkbox" checked class="mt-1 h-4 w-4 cursor-pointer accent-indigo-700" />
+            <span>
+              <span class="block font-medium">Answer key kept separate</span>
+              <span class="block text-xs text-slate-600 dark:text-slate-400">Correct answers sit in the teacher-only answer key, behind server security rules.</span>
+            </span>
           </label>
-          <label class="flex items-start gap-3 text-sm cursor-pointer">
-            <input type="checkbox" checked class="mt-1 rounded text-indigo-600 focus:ring-indigo-500" />
-            <div>
-              <span class="font-medium text-slate-800 dark:text-slate-200">No AI Hallucinations / Negative Marking Compliant</span>
-              <p class="text-xs text-slate-500">Standard 1/4 negative marking rule verified (+4 / -1).</p>
-            </div>
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input type="checkbox" checked class="mt-1 h-4 w-4 cursor-pointer accent-indigo-700" />
+            <span>
+              <span class="block font-medium">Answers and marking checked</span>
+              <span class="block text-xs text-slate-600 dark:text-slate-400">You verified each answer yourself. Negative marking is 1/4 (+4 / -1).</span>
+            </span>
           </label>
         </div>
-      </div>
+      </section>
     </div>
   `,
 })

@@ -1,3 +1,338 @@
-/* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+
+/*
+ * Dark mode is driven by <html data-theme="light|dark"> and the colour palette by
+ * <html data-palette="aurora|ember|iris">. Both are applied before first paint by the inline
+ * script in index.html and changed by ThemeService (the header controls).
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+ * Palettes. Each defines an accent scale and a partner scale (used for the hero gradient and
+ * highlights). Step 600 always passes AA with white text, step 700 passes as text on light
+ * surfaces, step 300 passes as text on the dark surface, step 400 takes dark text on dark mode.
+ */
+:root,
+html[data-palette='aurora'] {
+  --accent-50: #e6fafd;
+  --accent-100: #c6f3fa;
+  --accent-200: #94e7f4;
+  --accent-300: #5ad5e8;
+  --accent-400: #2bbbd6;
+  --accent-500: #129fbb;
+  --accent-600: #0b7088;
+  --accent-700: #095b70;
+  --accent-800: #0b4a5c;
+  --accent-900: #0d3d4c;
+  --accent-950: #082a35;
+
+  --partner-50: #eef3ff;
+  --partner-100: #dce6ff;
+  --partner-200: #bbcdff;
+  --partner-300: #8faeff;
+  --partner-400: #5f88f5;
+  --partner-500: #3f67e6;
+  --partner-600: #2f52cc;
+  --partner-700: #2742a6;
+  --partner-800: #213784;
+  --partner-900: #1e306b;
+  --partner-950: #131d44;
+}
+
+html[data-palette='ember'] {
+  --accent-50: #fff4ec;
+  --accent-100: #ffe4d1;
+  --accent-200: #ffc8a3;
+  --accent-300: #ffa46b;
+  --accent-400: #ff8238;
+  --accent-500: #f56420;
+  --accent-600: #c2410c;
+  --accent-700: #9a3412;
+  --accent-800: #7c2d12;
+  --accent-900: #652712;
+  --accent-950: #3a1407;
+
+  --partner-50: #fff0f6;
+  --partner-100: #ffdcea;
+  --partner-200: #ffb9d5;
+  --partner-300: #ff8cba;
+  --partner-400: #f65c9b;
+  --partner-500: #e43a80;
+  --partner-600: #c72a6b;
+  --partner-700: #a4205a;
+  --partner-800: #841c4b;
+  --partner-900: #6b1a41;
+  --partner-950: #3d0b24;
+}
+
+html[data-palette='iris'] {
+  --accent-50: #eef0ff;
+  --accent-100: #e0e4ff;
+  --accent-200: #c7ceff;
+  --accent-300: #a3aeff;
+  --accent-400: #7e8cff;
+  --accent-500: #5f6dfa;
+  --accent-600: #4a54ea;
+  --accent-700: #3b42d1;
+  --accent-800: #3036a6;
+  --accent-900: #272c80;
+  --accent-950: #181b52;
+
+  --partner-50: #f3efff;
+  --partner-100: #e8e0ff;
+  --partner-200: #d3c4ff;
+  --partner-300: #b79bff;
+  --partner-400: #9871f5;
+  --partner-500: #7b4bee;
+  --partner-600: #6d3fe0;
+  --partner-700: #5b2fc4;
+  --partner-800: #4a2699;
+  --partner-900: #3a1f75;
+  --partner-950: #230f4d;
+}
+
+/*
+ * Design tokens.
+ *
+ * The app's templates use Tailwind's `slate` and `indigo` families almost everywhere, so
+ * pointing those scales at the tokens below restyles every screen in one place:
+ *   slate   -> cool graphite neutrals (near-white in light, true graphite in dark)
+ *   indigo  -> whatever palette is active (the accent)
+ *   violet  -> the palette's partner colour
+ * Green, amber and rose keep their Tailwind defaults and mean something: correct,
+ * caution, error. See docs/UI_DESIGN.md.
+ */
+@theme {
+  --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Newsreader', 'Noto Serif Devanagari', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --color-white: #ffffff;
+
+  --color-slate-50: #f7f8fa;
+  --color-slate-100: #eff1f5;
+  --color-slate-200: #e1e4eb;
+  --color-slate-300: #c9ced9;
+  --color-slate-400: #9ba3b4;
+  --color-slate-500: #667085;
+  --color-slate-600: #4d5666;
+  --color-slate-700: #333b4b;
+  --color-slate-800: #1e2430;
+  --color-slate-900: #121620;
+  --color-slate-950: #0a0c12;
+
+  --color-indigo-50: var(--accent-50);
+  --color-indigo-100: var(--accent-100);
+  --color-indigo-200: var(--accent-200);
+  --color-indigo-300: var(--accent-300);
+  --color-indigo-400: var(--accent-400);
+  --color-indigo-500: var(--accent-500);
+  --color-indigo-600: var(--accent-600);
+  --color-indigo-700: var(--accent-700);
+  --color-indigo-800: var(--accent-800);
+  --color-indigo-900: var(--accent-900);
+  --color-indigo-950: var(--accent-950);
+
+  --color-violet-50: var(--partner-50);
+  --color-violet-100: var(--partner-100);
+  --color-violet-200: var(--partner-200);
+  --color-violet-300: var(--partner-300);
+  --color-violet-400: var(--partner-400);
+  --color-violet-500: var(--partner-500);
+  --color-violet-600: var(--partner-600);
+  --color-violet-700: var(--partner-700);
+  --color-violet-800: var(--partner-800);
+  --color-violet-900: var(--partner-900);
+  --color-violet-950: var(--partner-950);
+
+  /* Any leftover purple classes follow the partner colour too. */
+  --color-purple-50: var(--partner-50);
+  --color-purple-100: var(--partner-100);
+  --color-purple-200: var(--partner-200);
+  --color-purple-300: var(--partner-300);
+  --color-purple-400: var(--partner-400);
+  --color-purple-500: var(--partner-500);
+  --color-purple-600: var(--partner-600);
+  --color-purple-700: var(--partner-700);
+  --color-purple-800: var(--partner-800);
+  --color-purple-900: var(--partner-900);
+  --color-purple-950: var(--partner-950);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html[data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-slate-50);
+    color: var(--color-slate-900);
+    font-variant-numeric: tabular-nums;
+    text-rendering: optimizeLegibility;
+  }
+
+  html[data-theme='dark'] body {
+    background-color: var(--color-slate-950);
+    color: var(--color-slate-100);
+  }
+
+  /* Angular component tags are inline by default, which silently drops the vertical
+     spacing between stacked sections. Make the layout-level ones blocks. */
+  app-root,
+  app-voice-copilot,
+  app-exam-studio,
+  app-review-gate,
+  app-exam-summary-bar,
+  app-audio-visualizer,
+  app-intent-card,
+  app-transcript-feed,
+  app-question-editor-card,
+  app-stat-card,
+  app-scheme-picker,
+  app-scheme-review,
+  app-sheet-upload {
+    display: block;
+  }
+
+  /* Headings carry the typographic contrast: serif titles over a sans interface. */
+  h1,
+  h2 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  h1 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background-color: var(--color-indigo-200);
+    color: var(--color-slate-900);
+  }
+
+  /* Visible keyboard focus everywhere (WCAG 2.4.7). */
+  :focus-visible {
+    outline: 2px solid var(--color-indigo-600);
+    outline-offset: 2px;
+  }
+
+  html[data-theme='dark'] :focus-visible {
+    outline-color: var(--color-indigo-300);
+  }
+
+  /* A soft brand tint at the top of every page. Depth without glow blobs. */
+  .app-backdrop {
+    background-image: linear-gradient(to bottom, color-mix(in oklab, var(--accent-100) 70%, transparent), transparent 340px);
+  }
+
+  html[data-theme='dark'] .app-backdrop {
+    background-image: linear-gradient(to bottom, color-mix(in oklab, var(--accent-800) 22%, transparent), transparent 360px);
+  }
+}
+
+@layer components {
+  /* The hero panel: a slowly drifting two-colour gradient (white text passes AA on every stop). */
+  .hero-surface {
+    background-image: linear-gradient(115deg, var(--accent-700) 0%, var(--partner-700) 55%, var(--accent-800) 100%);
+    background-size: 220% 220%;
+    animation: hero-drift 18s ease-in-out infinite alternate;
+  }
+
+  /* Cards that rise slightly and pick up the accent on hover. */
+  .lift {
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .lift:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in oklab, var(--accent-500) 55%, var(--color-slate-200));
+    box-shadow: 0 10px 28px -14px color-mix(in oklab, var(--accent-600) 55%, transparent);
+  }
+
+  html[data-theme='dark'] .lift:hover {
+    border-color: color-mix(in oklab, var(--accent-400) 50%, var(--color-slate-800));
+    box-shadow: 0 10px 30px -12px color-mix(in oklab, var(--accent-400) 35%, transparent);
+  }
+
+  /* Children fade and rise in one after another. */
+  .stagger > * {
+    animation: rise-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .stagger > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  .stagger > :nth-child(3) {
+    animation-delay: 120ms;
+  }
+
+  .stagger > :nth-child(4) {
+    animation-delay: 180ms;
+  }
+
+  .stagger > :nth-child(n + 5) {
+    animation-delay: 240ms;
+  }
+
+  /* Live waveform: bars breathe while recording. Heights still come from the data. */
+  .wave-live {
+    transform-origin: center;
+    animation: wave 900ms ease-in-out infinite alternate;
+  }
+
+  /* Each routed screen fades in as you navigate. */
+  router-outlet + * {
+    animation: rise-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+
+@keyframes hero-drift {
+  from {
+    background-position: 0% 40%;
+  }
+  to {
+    background-position: 100% 60%;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes wave {
+  from {
+    transform: scaleY(0.4);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Respect the OS "reduce motion" setting (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .lift:hover {
+    transform: none;
+  }
+}

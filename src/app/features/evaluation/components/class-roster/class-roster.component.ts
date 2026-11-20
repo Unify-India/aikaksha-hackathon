@@ -25,7 +25,7 @@ const STATUS_ICON: Record<SheetStatus, string> = {
   template: `
     <nav
       aria-labelledby="roster-heading"
-      class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+      class="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
     >
       <h2 id="roster-heading" class="px-1 text-sm font-bold text-slate-900 dark:text-white">
         Class sheets

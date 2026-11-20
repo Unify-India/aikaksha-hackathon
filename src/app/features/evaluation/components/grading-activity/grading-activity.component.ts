@@ -7,7 +7,7 @@ import { IActivityEntry } from '../../data/evaluation.store';
   template: `
     <section
       aria-labelledby="activity-heading"
-      class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      class="lift rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
       <h2 id="activity-heading" class="text-base font-bold text-slate-900 dark:text-white">Agent activity</h2>
       @if (entries().length === 0) {

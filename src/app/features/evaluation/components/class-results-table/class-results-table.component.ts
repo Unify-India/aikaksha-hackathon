@@ -32,7 +32,7 @@ const VERDICT: Record<QuestionVerdict, { icon: string; text: string; css: string
   template: `
     <section
       aria-labelledby="results-heading"
-      class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      class="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="results-heading" class="text-base font-bold text-slate-900 dark:text-white">{{ heading() }}</h2>
@@ -41,7 +41,7 @@ const VERDICT: Record<QuestionVerdict, { icon: string; text: string; css: string
         </p>
       </div>
 
-      <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+      <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
         <table class="w-full text-left text-sm">
           <caption class="sr-only">
             Marks per student and per question. ✓ correct, ◐ partly correct, ✗ wrong, – not attempted.

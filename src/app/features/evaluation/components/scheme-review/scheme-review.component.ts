@@ -7,7 +7,7 @@ import { IMarkingScheme } from '../../models/evaluation.models';
   template: `
     <section
       aria-labelledby="draft-heading"
-      class="rounded-2xl border p-5"
+      class="lift rounded-lg border p-5"
       [class]="readOnly() ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900' : 'border-indigo-300 bg-white dark:border-indigo-700 dark:bg-slate-900'"
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
@@ -56,7 +56,7 @@ import { IMarkingScheme } from '../../models/evaluation.models';
 
       <ol class="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
         @for (q of scheme().questions; track q.id) {
-          <li class="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-900">
+          <li class="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-900">
             <div class="flex items-start justify-between gap-3">
               <p class="text-slate-900 dark:text-white">
                 <span class="font-bold">{{ q.section ? 'Section ' + q.section + ' · ' : '' }}Q{{ q.number }}.</span>

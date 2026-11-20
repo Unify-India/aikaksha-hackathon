@@ -1,6 +1,5 @@
 import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { StatCardComponent } from '../../shared/components/stat-card.component';
 import { AppButtonComponent } from '../../shared/components/app-button/app-button.component';
 import { QuestionEditorCardComponent } from './components/question-editor-card/question-editor-card.component';
 import { ExamSummaryBarComponent } from './components/exam-summary-bar/exam-summary-bar.component';
@@ -12,15 +11,13 @@ import { IExam, IExamQuestion, QuestionType, ExamStatus, NegativeMarkingRule } f
   standalone: true,
   imports: [
     CommonModule,
-    StatCardComponent,
     AppButtonComponent,
     QuestionEditorCardComponent,
     ExamSummaryBarComponent,
     PublishConfirmModalComponent,
   ],
   template: `
-    <div class="space-y-6">
-      <!-- Exam Summary Bar Component -->
+    <div class="space-y-8">
       <app-exam-summary-bar
         [exam]="activeExam()"
         [actualCount]="questions().length"
@@ -28,38 +25,32 @@ import { IExam, IExamQuestion, QuestionType, ExamStatus, NegativeMarkingRule } f
         (openPublishModal)="isModalOpen.set(true)"
       />
 
-      <!-- Metrics Cards -->
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <app-stat-card title="Total Questions" [value]="questions().length" subtitle="15 Target Capacity" icon="📝" />
-        <app-stat-card title="Total Marks" [value]="questions().length * 4" subtitle="4 Marks / Question" icon="🏆" />
-        <app-stat-card title="Deduplication Status" value="Passed (0 dupes)" subtitle="Cosine Sim < 0.85" icon="🛡️" />
-        <app-stat-card title="Answer Key Partition" value="Secured Server-Side" subtitle="Excluded from Student Payloads" icon="🔒" />
-      </div>
+      <p class="text-sm text-slate-600 dark:text-slate-400">
+        <span class="font-medium text-slate-900 dark:text-slate-100">Duplicate check:</span> none found.
+        <span class="ml-4 font-medium text-slate-900 dark:text-slate-100">Answer key:</span> kept on the server and never sent to students.
+      </p>
 
-      <!-- Question Bank Draft Viewer -->
-      <div class="space-y-4">
-        <div class="flex items-center justify-between">
+      <section class="space-y-4" aria-labelledby="bank-title">
+        <div class="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 class="text-lg font-bold text-slate-900 dark:text-white">
-              Generated Question Bank ({{ questions().length }} Questions)
-            </h2>
-            <p class="text-xs text-slate-500">Autonomous Gemini 2.5 Flash generations with teacher LaTeX review</p>
+            <h2 id="bank-title" class="text-2xl">Question bank</h2>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              {{ questions().length }} questions drafted by Gemini. Check every answer and formula before you publish.
+            </p>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-600 dark:text-slate-400">Language: English</span>
             <app-button
               variant="secondary"
               size="sm"
-              icon="➕"
-              label="Add Question"
+              label="Add question"
               (clicked)="addQuestion()"
             />
-            <span class="text-xs text-slate-500">Language: English (Primary)</span>
           </div>
         </div>
 
-        <!-- Question Cards Grid -->
-        <div class="grid grid-cols-1 gap-4">
+        <div class="stagger grid grid-cols-1 gap-4">
           @for (q of questions(); track q.id) {
             <app-question-editor-card
               [question]="q"
@@ -71,9 +62,8 @@ import { IExam, IExamQuestion, QuestionType, ExamStatus, NegativeMarkingRule } f
             />
           }
         </div>
-      </div>
+      </section>
 
-      <!-- Publish Confirm Modal (Human-In-The-Loop Review Gate) -->
       <app-publish-confirm-modal
         [isOpen]="isModalOpen()"
         [exam]="activeExam()"
