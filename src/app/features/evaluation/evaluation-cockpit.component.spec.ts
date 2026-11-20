@@ -102,4 +102,41 @@ describe('EvaluationCockpitComponent', () => {
     expect([...el.querySelectorAll('button')].some((b) => b.textContent?.includes('Cancel drafting'))).toBe(false);
     expect(el.querySelector('[role="alert"]')).toBeNull();
   }, 10_000);
+  it('links to the saved question paper PDF (opens in a new tab), and hides the link when no PDF is saved', async () => {
+    const fixture = TestBed.createComponent(EvaluationCockpitComponent);
+    const store = TestBed.inject(EvaluationStore);
+    await vi.waitFor(() => expect(store.busy()).toBe('idle'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    // The sample papers have no saved PDF → no link.
+    expect(el.querySelectorAll('a[aria-label^="View question paper"]')).toHaveLength(0);
+
+    await store.draftFromQuestionPaper(new File(['%PDF-1.3'], 'maths paper.pdf', { type: 'application/pdf' }));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const link = el.querySelector<HTMLAnchorElement>('a[aria-label^="View question paper"]');
+      expect(link?.getAttribute('href')).toMatch(/^https:\/\/storage\.test\/question_papers\/.+\/question-paper\.pdf$/);
+      expect(link?.target).toBe('_blank');
+      expect(link?.rel).toContain('noopener');
+    });
+  }, 10_000);
+  it('shows an approved scheme read-only with "View answers", and goes back', async () => {
+    const fixture = TestBed.createComponent(EvaluationCockpitComponent);
+    const store = TestBed.inject(EvaluationStore);
+    await vi.waitFor(() => expect(store.busy()).toBe('idle'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const buttons = () => [...el.querySelectorAll('button')];
+
+    buttons().find((b) => b.getAttribute('aria-label')?.startsWith('View answers'))!.click();
+    fixture.detectChanges();
+    expect(el.textContent).toContain('Marking scheme (approved)');
+    expect(el.textContent).toContain('Correct option:');
+    expect(buttons().some((b) => b.textContent?.includes('Approve scheme'))).toBe(false);
+
+    buttons().find((b) => b.textContent?.includes('Back to schemes'))!.click();
+    fixture.detectChanges();
+    expect(el.textContent).not.toContain('Marking scheme (approved)');
+    expect(el.textContent).toContain('1. Marking scheme');
+  });
 });

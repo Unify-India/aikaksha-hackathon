@@ -34,6 +34,8 @@ export interface EvaluationRepository {
   saveSheet(paperId: string, sheet: ISheetEvaluation): Promise<void>;
   /** Downloads a saved sheet's PDF (to view it again later). */
   downloadSheetFile(sheet: ISheetEvaluation): Promise<File | null>;
+  /** A link that opens a stored file (e.g. a question paper PDF) in the browser. */
+  fileUrl(path: string): Promise<string>;
 }
 
 export const EVALUATION_REPOSITORY = new InjectionToken<EvaluationRepository>('EVALUATION_REPOSITORY', {
@@ -160,6 +162,11 @@ export class FirebaseEvaluationRepository implements EvaluationRepository {
     const { storage, st } = await this.connect();
     const blob = await st.getBlob(st.ref(storage, sheet.filePath));
     return new File([blob], sheet.fileName || 'sheet.pdf', { type: 'application/pdf' });
+  }
+
+  async fileUrl(path: string): Promise<string> {
+    const { storage, st } = await this.connect();
+    return st.getDownloadURL(st.ref(storage, path));
   }
 
   /** Uploads a PDF; returns false (instead of failing the whole flow) if Storage is unavailable. */

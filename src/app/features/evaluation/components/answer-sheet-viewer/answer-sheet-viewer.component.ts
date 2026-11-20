@@ -2,6 +2,7 @@ import { Component, DestroyRef, computed, effect, inject, input, output, signal,
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { PdfDocumentService } from '../../data/pdf-document.service';
 import { RedPenCopyService } from '../../data/red-pen-copy.service';
+import { MarkedPdfService } from '../../data/marked-pdf.service';
 import {
   IMarkingScheme,
   ISheetEvaluation,
@@ -89,8 +90,21 @@ const VERDICT_TEXT: Record<QuestionVerdict, string> = {
             (click)="showOverlay.set(!showOverlay())">
             Mark boxes
           </button>
+
+          <button type="button"
+            class="rounded-lg border border-emerald-700 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:opacity-50 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-950"
+            [disabled]="!canDownloadMarked() || downloading()"
+            [attr.aria-label]="'Download marked PDF of ' + (sheet()?.studentLabel ?? 'this sheet') + ' with the marks drawn on it'"
+            (click)="downloadMarked()">
+            {{ downloading() ? 'Preparing PDF…' : 'Download marked PDF' }}
+          </button>
         </div>
       </div>
+      @if (downloadError()) {
+        <p role="alert" class="border-b border-rose-200 bg-rose-50 px-4 py-2 text-xs text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
+          Could not create the marked PDF: {{ downloadError() }}
+        </p>
+      }
 
       @if (viewMode() === 'redpen') {
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-950 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100" aria-live="polite">
@@ -204,6 +218,19 @@ export class AnswerSheetViewerComponent {
   protected readonly loadError = signal<string | null>(null);
 
   protected readonly redPen = inject(RedPenCopyService);
+  private readonly markedPdf = inject(MarkedPdfService);
+  protected readonly downloading = signal(false);
+  protected readonly downloadError = signal<string | null>(null);
+  /** A marked copy needs the PDF and a graded result. */
+  protected readonly canDownloadMarked = computed(() => {
+    const sheet = this.sheet();
+    return (
+      !!this.file() &&
+      this.file()!.type === 'application/pdf' &&
+      !!sheet?.questions.length &&
+      ['graded', 'needs_review', 'approved'].includes(sheet.status)
+    );
+  });
   protected readonly viewMode = signal<'original' | 'redpen'>('original');
   protected readonly redPenCopy = computed(() => {
     const sheet = this.sheet();
@@ -290,6 +317,28 @@ export class AnswerSheetViewerComponent {
   }
 
   /** Sends the current page (as an image) and its final marks to Nano Banana. */
+  /** Builds the marked copy (original pages + final marks) in the browser and downloads it. */
+  protected async downloadMarked(): Promise<void> {
+    const sheet = this.sheet();
+    const file = this.file();
+    if (!sheet || !file) return;
+    this.downloading.set(true);
+    this.downloadError.set(null);
+    try {
+      const blob = await this.markedPdf.build(file, sheet, this.scheme());
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${sheet.studentLabel} - marked.pdf`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch (e) {
+      this.downloadError.set(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.downloading.set(false);
+    }
+  }
+
   protected async drawCopy(): Promise<void> {
     const sheet = this.sheet();
     const url = this.pageImage();

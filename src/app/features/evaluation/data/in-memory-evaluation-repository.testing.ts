@@ -59,6 +59,10 @@ export class InMemoryEvaluationRepository implements EvaluationRepository {
     this.statusHistory.set(sheet.submissionId, history);
   }
 
+  async fileUrl(path: string): Promise<string> {
+    return `https://storage.test/${path}`;
+  }
+
   async downloadSheetFile(): Promise<File | null> {
     return new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], 'sheet.pdf', { type: 'application/pdf' });
   }
