@@ -210,6 +210,17 @@ html[data-palette='iris'] {
     min-width: 0;
   }
 
+  /* A scroll container must also be a positioned box. Otherwise absolutely positioned children
+     (such as the .sr-only text in every table cell) are placed relative to the whole page,
+     escape the container's clipping, and stretch the document sideways. Utilities such as
+     `absolute` or `sticky` still win over this, because they are in a higher layer. */
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-auto,
+  .overflow-scroll {
+    position: relative;
+  }
+
   /* Headings carry the typographic contrast: serif titles over a sans interface. */
   h1,
   h2 {
