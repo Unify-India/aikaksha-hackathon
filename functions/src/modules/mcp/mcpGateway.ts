@@ -4,9 +4,20 @@ import * as crypto from 'crypto';
 import * as logger from 'firebase-functions/logger';
 import { db } from '../../config/firebase.js';
 import { FIRESTORE_COLLECTIONS } from '../../config/index.js';
-import type { IExam, IExamQuestion, IMCPToolCall } from '../../types/index.js';
-import { computeDraftHash } from '../exams/examPublishCallable.js';
-import { createAndSegregateExam } from '../exams/examTools.js';
+import type { IExam, IMCPToolCall, IQuestionContent } from '../../types/index.js';
+import {
+  auditQuestionBatch,
+  createAndSegregateExam,
+  createAutoDpp,
+  finalizeAndPublishExam,
+  generateAndAttachQuestions,
+  type AuditQuestionBatchInput,
+  type CreateAutoDppInput,
+  type FinalizeAndPublishExamInput,
+  type GenerateQuestionsInput,
+} from '../exams/examTools.js';
+
+import { understandTeacherRequest } from '../workflows/understand.js';
 
 export const mcpApp = express.default();
 
@@ -45,9 +56,13 @@ async function authenticateRequest(
  * MCP Tools Handler Route
  * Executes one of:
  * - resolve_teacher_context
+ * - extract_intent                 (teacher sentence -> intent + exam plan or what is missing)
  * - create_exam
- * - generate_and_attach_questions
- * - finalize_and_publish_exam
+ * - generate_and_attach_questions  (real Gemini generation)
+ * - audit_question_batch           (blind Gemini solver; issues confirmationToken + contentHash)
+ * - finalize_and_publish_exam      (requires that token + hash)
+ * - create_auto_dpp
+ * - create_complete_exam           (single payload { examParams, questions })
  */
 mcpApp.post('/v1/tools', authenticateRequest, async (req: express.Request, res: express.Response) => {
   const user = (req as express.Request & { user: { uid: string; role?: string } }).user;
@@ -148,17 +163,10 @@ mcpApp.post('/v1/tools', authenticateRequest, async (req: express.Request, res: 
       }
 
       case 'generate_and_attach_questions': {
-        interface GenerateQuestionsInput {
-          examId: string;
-          subject: string;
-          topic: string;
-          count: number;
-          difficulty?: string;
-          languages?: string[];
-        }
+        // Real Gemini generation (same code path as /api/tools and the workflow).
         const input = toolCall.input as GenerateQuestionsInput;
 
-        if (!input.examId || !input.subject || !input.count) {
+        if (!input?.examId || !input.subject || !input.count) {
           res.status(400).json({
             error: 'INVALID_ARGUMENT',
             message: 'examId, subject, and count are required',
@@ -166,67 +174,12 @@ mcpApp.post('/v1/tools', authenticateRequest, async (req: express.Request, res: 
           return;
         }
 
-        const examRef = db.collection(FIRESTORE_COLLECTIONS.MASTER_EXAMS).doc(input.examId);
-        const examDoc = await examRef.get();
-        if (!examDoc.exists) {
-          res.status(404).json({ error: 'DRAFT_NOT_FOUND', message: 'Exam draft not found' });
-          return;
-        }
-
-        const count = Math.min(Math.max(1, input.count), 15);
-        const generatedQuestions: IExamQuestion[] = [];
-
-        for (let i = 1; i <= count; i++) {
-          const qId = `q_${crypto.randomUUID().slice(0, 8)}`;
-          generatedQuestions.push({
-            id: qId,
-            type: 'MCQ',
-            marks: 4,
-            negativeMarks: 1,
-            subject: input.subject,
-            topic: input.topic || 'General',
-            difficulty: input.difficulty || 'medium',
-            teacherId,
-            en: {
-              text: `Sample generated question ${i} on ${input.subject} (${input.topic || 'General'})?`,
-              options: [
-                { id: 'opt1', text: 'Option A - Correct Statement' },
-                { id: 'opt2', text: 'Option B - Alternative theory' },
-                { id: 'opt3', text: 'Option C - Incorrect concept' },
-                { id: 'opt4', text: 'Option D - Irrelevant factor' },
-              ],
-            },
-            correctOptionId: 'opt1',
-            explanation: {
-              en: `Detailed explanation for generated question ${i}.`,
-            },
-          });
-        }
-
-        // Attach to draft_questions subcollection
-        const batch = db.batch();
-        for (const q of generatedQuestions) {
-          const docRef = examRef.collection('draft_questions').doc(q.id!);
-          batch.set(docRef, q);
-        }
-
-        // Update totalQuestions on master draft
-        batch.update(examRef, {
-          totalQuestions: generatedQuestions.length,
-          totalMarks: generatedQuestions.length * 4,
-          updatedAt: new Date().toISOString(),
-        });
-
-        await batch.commit();
-
+        const result = await generateAndAttachQuestions(teacherId, input);
         res.json({
-          examId: input.examId,
-          generatedCount: generatedQuestions.length,
-          requestedCount: input.count,
-          validationStatus: 'PASSED',
-          questionPreview: generatedQuestions.map((q) => ({
+          ...result,
+          questionPreview: result.questions.map((q) => ({
             id: q.id,
-            text: q.en?.text,
+            text: (q.en as IQuestionContent | undefined)?.text,
             type: q.type,
             marks: q.marks,
           })),
@@ -234,93 +187,48 @@ mcpApp.post('/v1/tools', authenticateRequest, async (req: express.Request, res: 
         return;
       }
 
-      case 'finalize_and_publish_exam': {
-        interface FinalizeInput {
-          examId: string;
-          status?: 'upcoming' | 'live';
-          expectedDraftHash?: string;
-        }
-        const input = toolCall.input as FinalizeInput;
-        const examId = input.examId;
-
-        if (!examId) {
+      case 'audit_question_batch': {
+        // Blind Gemini solver pass; returns score, flags, contentHash and a one-time confirmationToken.
+        const input = toolCall.input as AuditQuestionBatchInput;
+        if (!input?.examId) {
           res.status(400).json({ error: 'INVALID_ARGUMENT', message: 'examId is required' });
           return;
         }
+        res.json(await auditQuestionBatch(teacherId, input));
+        return;
+      }
 
-        const masterExamRef = db.collection(FIRESTORE_COLLECTIONS.MASTER_EXAMS).doc(examId);
-        const masterDoc = await masterExamRef.get();
-        if (!masterDoc.exists) {
-          res.status(404).json({ error: 'DRAFT_NOT_FOUND', message: 'Exam not found' });
+      case 'finalize_and_publish_exam': {
+        // Requires the confirmationToken + contentHash issued by audit_question_batch.
+        const input = toolCall.input as FinalizeAndPublishExamInput;
+        if (!input?.examId || !input.confirmationToken || !input.contentHash) {
+          res.status(400).json({
+            error: 'INVALID_ARGUMENT',
+            message: 'examId, confirmationToken and contentHash are required (run audit_question_batch first)',
+          });
           return;
         }
+        res.json(await finalizeAndPublishExam(teacherId, input));
+        return;
+      }
 
-        const currentExam = masterDoc.data() as IExam;
-        if (currentExam.teacherId !== teacherId) {
-          res.status(403).json({ error: 'FORBIDDEN', message: 'Teacher ownership mismatch' });
+      case 'extract_intent': {
+        const transcript = (toolCall.input as { transcript?: unknown })?.transcript;
+        if (typeof transcript !== 'string' || !transcript.trim()) {
+          res.status(400).json({ error: 'INVALID_ARGUMENT', message: 'transcript is required' });
           return;
         }
+        res.json(await understandTeacherRequest(teacherId, transcript.trim()));
+        return;
+      }
 
-        const questionsSnapshot = await masterExamRef.collection('draft_questions').get();
-        const questions: IExamQuestion[] = questionsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as object),
-        } as IExamQuestion));
-
-        const computedHash = computeDraftHash(currentExam, questions);
-        const targetStatus = input.status || 'upcoming';
-        const nowIso = new Date().toISOString();
-
-        // 3-way partition write
-        const batch = db.batch();
-
-        batch.update(masterExamRef, {
-          status: targetStatus,
-          updatedAt: nowIso,
-          draftHash: computedHash,
-          questions: [],
-        });
-
-        const examQuestionsRef = db.collection(FIRESTORE_COLLECTIONS.EXAM_QUESTIONS).doc(examId);
-        batch.set(examQuestionsRef, {
-          examId,
-          questions: questions.map((q) => {
-            const sanitized = { ...q };
-            delete sanitized.correctOptionId;
-            delete sanitized.answer;
-            delete sanitized.explanation;
-            return sanitized;
-          }),
-          updatedAt: nowIso,
-        });
-
-        const answerKeyRef = db.collection(FIRESTORE_COLLECTIONS.ANSWER_KEY).doc(examId);
-        const keysMap: Record<string, unknown> = {};
-        for (const q of questions) {
-          keysMap[q.id!] = {
-            questionId: q.id,
-            correctOptionId: q.correctOptionId,
-            answer: q.answer,
-            explanation: q.explanation,
-            marks: q.marks,
-            negativeMarks: q.negativeMarks,
-          };
+      case 'create_auto_dpp': {
+        const input = toolCall.input as CreateAutoDppInput;
+        if (!input?.sentence && !input?.topic) {
+          res.status(400).json({ error: 'INVALID_ARGUMENT', message: 'sentence (what was taught) or topic is required' });
+          return;
         }
-        batch.set(answerKeyRef, {
-          examId,
-          keys: keysMap,
-          updatedAt: nowIso,
-          teacherId,
-        });
-
-        await batch.commit();
-
-        res.json({
-          success: true,
-          examId,
-          status: targetStatus,
-          draftHash: computedHash,
-        });
+        res.json(await createAutoDpp(teacherId, input));
         return;
       }
 
@@ -346,6 +254,20 @@ mcpApp.post('/v1/tools', authenticateRequest, async (req: express.Request, res: 
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error('MCP execution error:', errorMsg);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: errorMsg });
+    const { status, code } = toolErrorStatus(errorMsg);
+    res.status(status).json({ error: code, message: errorMsg });
   }
 });
+
+/** Maps the exam tools' error messages to HTTP statuses so callers can tell what went wrong. */
+function toolErrorStatus(message: string): { status: number; code: string } {
+  if (message.startsWith('IDEMPOTENCY_CONFLICT')) return { status: 409, code: 'IDEMPOTENCY_CONFLICT' };
+  if (message.startsWith('HASH_MISMATCH') || message.startsWith('CONTENT_TAMPERED')) return { status: 409, code: 'HASH_MISMATCH' };
+  if (message.startsWith('INVALID_TOKEN')) return { status: 403, code: 'INVALID_TOKEN' };
+  if (/ownership mismatch/i.test(message)) return { status: 403, code: 'FORBIDDEN' };
+  if (/not found/i.test(message)) return { status: 404, code: 'NOT_FOUND' };
+  if (message.startsWith('GENERATION_FAILED') || /Gemini|RESOURCE_EXHAUSTED|quota/i.test(message)) {
+    return { status: 502, code: 'MODEL_ERROR' };
+  }
+  return { status: 500, code: 'INTERNAL_ERROR' };
+}

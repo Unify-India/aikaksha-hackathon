@@ -49,6 +49,15 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     return next();
   }
 
+  // Local development (docs/UI_EXAM_CREATION_INTEGRATION_GUIDE.md §2.3): the Angular service sends
+  // `Bearer mock-token-<teacherId>`. Only accepted in the emulator or when explicitly enabled.
+  const mockTokensAllowed = process.env.FUNCTIONS_EMULATOR === 'true' || process.env.ALLOW_MOCK_TOKENS === 'true';
+  if (token && mockTokensAllowed && token.startsWith('mock-token-')) {
+    const teacherId = token.slice('mock-token-'.length).trim() || DEMO_AUTH_CONTEXT.teacherId;
+    req.auth = { ...DEMO_AUTH_CONTEXT, teacherId };
+    return next();
+  }
+
   logger.warn('Authentication failed: Missing or invalid token', { tokenProvided: Boolean(token) });
   res.status(401).json({
     error: 'UNAUTHENTICATED',
