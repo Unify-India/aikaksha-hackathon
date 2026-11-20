@@ -2,8 +2,9 @@ import * as crypto from 'crypto';
 import * as logger from 'firebase-functions/logger';
 import { db } from '../../config/firebase.js';
 import { FIRESTORE_COLLECTIONS } from '../../config/index.js';
-import type { IExam, IExamQuestion } from '../../types/index.js';
+import type { IExam, IExamQuestion, IOption, ExamStatus } from '../../types/index.js';
 import { stripForStudent, sha256Canonical } from '../../utils/security.js';
+import { resolveKolkataTimeWindow } from '../../utils/time.js';
 
 export interface ResolveTeacherContextResult {
   teacherId: string;
@@ -575,5 +576,333 @@ export async function createAutoDpp(
     totalMarks: count * 4,
     contentHash: auditResult.contentHash,
     confirmationToken: auditResult.confirmationToken,
+  };
+}
+
+export interface CreateAndSegregateExamResult {
+  success: true;
+  examId: string;
+  totalQuestions: number;
+  totalMarks: number;
+  status: string;
+  createdAt: string;
+}
+
+/**
+ * Tool / Direct Pipeline: create_complete_exam
+ * Creates an exam and partitions it atomically across master_exams, exam_questions, and answerKey.
+ * Validates inputs, calculates metrics, derives timestamps in Asia/Kolkata,
+ * normalizes question & option IDs, strips student answers, and commits everything via db.batch().
+ */
+export async function createAndSegregateExam(
+  teacherId: string,
+  payload: any,
+): Promise<CreateAndSegregateExamResult> {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid payload: expected an object containing examParams and questions');
+  }
+
+  // Support case-insensitive examParams / examparams / exam_params / params
+  const rawParams =
+    payload.examParams ||
+    payload.examparams ||
+    payload.ExamParams ||
+    payload.exam_params ||
+    payload.params ||
+    payload;
+
+  // Support questions / question / Questions / Question
+  let rawQuestions =
+    payload.questions ||
+    payload.question ||
+    payload.Questions ||
+    payload.Question ||
+    rawParams.questions ||
+    rawParams.question;
+
+  if (!rawQuestions && Array.isArray(payload)) {
+    rawQuestions = payload;
+  }
+
+  let questionsList: any[] = [];
+  if (Array.isArray(rawQuestions)) {
+    questionsList = rawQuestions;
+  } else if (rawQuestions && typeof rawQuestions === 'object') {
+    if (Array.isArray(rawQuestions.questions)) {
+      questionsList = rawQuestions.questions;
+    } else if (Array.isArray(rawQuestions.items)) {
+      questionsList = rawQuestions.items;
+    } else {
+      questionsList = Object.values(rawQuestions);
+    }
+  }
+
+  // Validate required fields (title, subject, duration, questions array non-empty)
+  const title = (rawParams.title || '').trim();
+  if (!title) {
+    throw new Error('Exam title is required');
+  }
+
+  const subject = (rawParams.subject || '').trim();
+  if (!subject) {
+    throw new Error('Exam subject is required');
+  }
+
+  const duration = Number(rawParams.duration);
+  if (!duration || duration <= 0 || isNaN(duration)) {
+    throw new Error('Valid exam duration in minutes is required');
+  }
+
+  if (!Array.isArray(questionsList) || questionsList.length === 0) {
+    throw new Error('Questions array must not be empty');
+  }
+
+  // Generate unique examId (e.g. exam_${crypto.randomUUID().slice(0, 8)})
+  const examId = rawParams.id || rawParams.examId || `exam_${crypto.randomUUID().slice(0, 8)}`;
+  const nowIso = new Date().toISOString();
+
+  // Derive timestamps: startTimestampMs, endTimestampMs using Asia/Kolkata if not passed
+  let startTimestampMs = Number(rawParams.startTimestampMs);
+  let endTimestampMs = Number(rawParams.endTimestampMs);
+  let startTime = rawParams.startTime;
+  let endTime = rawParams.endTime;
+  let date = rawParams.date;
+  let endDate = rawParams.endDate;
+
+  if (!startTimestampMs || !endTimestampMs) {
+    const timeWindow = resolveKolkataTimeWindow({
+      dateText: rawParams.date || rawParams.dateText || 'today',
+      startTime: rawParams.startTime,
+      endTime: rawParams.endTime,
+      durationMinutes: duration,
+    });
+    if (!startTimestampMs) {
+      startTimestampMs = timeWindow.startTimestampMs;
+    }
+    if (!endTimestampMs) {
+      endTimestampMs = timeWindow.endTimestampMs;
+    }
+    if (!startTime) {
+      startTime = timeWindow.startTime;
+    }
+    if (!endTime) {
+      endTime = timeWindow.endTime;
+    }
+    if (!date) {
+      date = timeWindow.date;
+    }
+    if (!endDate) {
+      endDate = timeWindow.endDate;
+    }
+  }
+
+  if (startTimestampMs >= endTimestampMs) {
+    endTimestampMs = startTimestampMs + duration * 60 * 1000;
+  }
+
+  const defaultMarks = rawParams.defaultMarks !== undefined ? Number(rawParams.defaultMarks) : 4;
+  const defaultNegativeMarks =
+    rawParams.defaultNegativeMarks !== undefined ? Number(rawParams.defaultNegativeMarks) : 1;
+
+  // Process questions: ensure valid question ID & normalize option IDs (opt1..opt4)
+  const fullQuestions: IExamQuestion[] = [];
+  const answerKeyMap: Record<string, any> = {};
+
+  for (let index = 0; index < questionsList.length; index++) {
+    const q = questionsList[index];
+    const qId = q.id || q.questionId || `q_${index + 1}_${crypto.randomUUID().slice(0, 6)}`;
+
+    const rawOptions = q.en?.options || q.options || [];
+    const normalizedOptions: IOption[] = [];
+    const optionIdMap: Record<string, string> = {};
+
+    if (Array.isArray(rawOptions)) {
+      rawOptions.forEach((opt: any, optIdx: number) => {
+        const newOptId = `opt${optIdx + 1}`;
+        let text = '';
+        if (typeof opt === 'string') {
+          text = opt;
+        } else if (opt && typeof opt === 'object') {
+          text = opt.text || opt.value || opt.label || '';
+          if (opt.id) {
+            optionIdMap[String(opt.id).toLowerCase()] = newOptId;
+          }
+        }
+        optionIdMap[String.fromCharCode(65 + optIdx).toLowerCase()] = newOptId;
+        optionIdMap[String(optIdx)] = newOptId;
+        optionIdMap[String(optIdx + 1)] = newOptId;
+        optionIdMap[newOptId.toLowerCase()] = newOptId;
+
+        normalizedOptions.push({
+          id: newOptId,
+          text,
+        });
+      });
+    }
+
+    const rawCorrect = String(
+      q.correctOptionId ||
+      q.correct_option_id ||
+      q.correctOption ||
+      q.correct_option ||
+      q.answer ||
+      q.correctAnswer ||
+      ''
+    ).trim();
+
+    let correctOptionId: string | undefined = undefined;
+    if (rawCorrect) {
+      const mapped = optionIdMap[rawCorrect.toLowerCase()];
+      if (mapped) {
+        correctOptionId = mapped;
+      } else {
+        const found = normalizedOptions.find(
+          (o) => o.text.trim().toLowerCase() === rawCorrect.toLowerCase()
+        );
+        correctOptionId = found ? found.id : rawCorrect;
+      }
+    } else if (normalizedOptions.length > 0) {
+      correctOptionId = 'opt1';
+    }
+
+    let explanation: { en?: string; hi?: string } | undefined = undefined;
+    if (typeof q.explanation === 'string') {
+      explanation = { en: q.explanation };
+    } else if (q.explanation && typeof q.explanation === 'object') {
+      explanation = {
+        en: q.explanation.en || q.explanation.text || '',
+        hi: q.explanation.hi || '',
+      };
+    }
+
+    const qMarks = Number(q.marks) || defaultMarks;
+    const qNegMarks = q.negativeMarks !== undefined ? Number(q.negativeMarks) : defaultNegativeMarks;
+    const questionText = q.text || q.question || q.questionText || q.en?.text || '';
+
+    const fullQuestion: IExamQuestion = {
+      id: qId,
+      type: q.type || (normalizedOptions.length > 0 ? 'MCQ' : 'Subjective'),
+      marks: qMarks,
+      negativeMarks: qNegMarks,
+      subject: q.subject || subject,
+      topic: q.topic || rawParams.topic || 'General',
+      subtopic: q.subtopic || '',
+      difficulty: q.difficulty || rawParams.difficulty || 'medium',
+      teacherId,
+      examId,
+      en: {
+        text: questionText,
+        options: normalizedOptions.length > 0 ? normalizedOptions : undefined,
+      },
+      options: normalizedOptions.length > 0 ? normalizedOptions : undefined,
+      correctOptionId,
+      answer: q.answer || correctOptionId,
+      explanation,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    fullQuestions.push(fullQuestion);
+
+    answerKeyMap[qId] = {
+      questionId: qId,
+      correctOptionId,
+      answer: q.answer || correctOptionId,
+      explanation,
+      marks: qMarks,
+      negativeMarks: qNegMarks,
+    };
+  }
+
+  // Calculate totalMarks and totalQuestions
+  const totalQuestions = fullQuestions.length;
+  const calculatedMarks = fullQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
+  const totalMarks = Number(rawParams.totalMarks) || calculatedMarks;
+  const status: ExamStatus =
+    rawParams.status === 'draft' ? 'draft' : (rawParams.status || 'upcoming');
+
+  // Partition into 3 distinct Firestore targets:
+  // a) master_exams/{examId}
+  const masterRef = db.collection(FIRESTORE_COLLECTIONS.MASTER_EXAMS).doc(examId);
+  const strippedQuestions = fullQuestions.map((q) => stripForStudent(q));
+  const contentHash = sha256Canonical(strippedQuestions);
+
+  const masterExamData: IExam = {
+    id: examId,
+    title,
+    subject,
+    duration,
+    totalMarks,
+    totalQuestions,
+    targetQuestions: Number(rawParams.targetQuestions) || totalQuestions,
+    status,
+    questions: [], // Cleared to enforce isolation
+    teacherId,
+    batchId: rawParams.batchId || 'batch-lakshya-2026',
+    class: rawParams.classLevel || rawParams.class || 'Class 12',
+    difficulty: rawParams.difficulty || 'medium',
+    allowedAttempts: Number(rawParams.allowedAttempts) || 1,
+    defaultMarks,
+    defaultNegativeMarks,
+    negativeMarks: defaultNegativeMarks,
+    startTimestampMs,
+    endTimestampMs,
+    startTime: startTime || '',
+    endTime: endTime || '',
+    date: date || '',
+    endDate: endDate || '',
+    languages: rawParams.languages || ['en'],
+    primaryLanguage: rawParams.primaryLanguage || 'en',
+    examPattern: rawParams.examPattern || 'NEET',
+    isSubjective: rawParams.isSubjective ?? false,
+    draftHash: contentHash,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  // b) exam_questions/{examId} + items/{qId}
+  const examQuestionsRef = db.collection(FIRESTORE_COLLECTIONS.EXAM_QUESTIONS).doc(examId);
+  const examQuestionsData = {
+    examId,
+    questions: strippedQuestions,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  // c) answerKey/{examId}
+  const answerKeyRef = db.collection(FIRESTORE_COLLECTIONS.ANSWER_KEY).doc(examId);
+  const answerKeyData = {
+    examId,
+    teacherId,
+    keys: answerKeyMap,
+    ...answerKeyMap,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  // Atomic batch write
+  const batch = db.batch();
+  batch.set(masterRef, masterExamData);
+  batch.set(examQuestionsRef, examQuestionsData);
+  for (const sq of strippedQuestions) {
+    const itemId = (sq.id as string) || `q_${crypto.randomUUID().slice(0, 8)}`;
+    const itemRef = examQuestionsRef.collection('items').doc(itemId);
+    batch.set(itemRef, sq);
+  }
+  batch.set(answerKeyRef, answerKeyData);
+
+  await batch.commit();
+
+  logger.info(
+    `Successfully created and segregated exam ${examId}: ${totalQuestions} questions, ${totalMarks} marks, status=${status}`
+  );
+
+  return {
+    success: true,
+    examId,
+    totalQuestions,
+    totalMarks,
+    status,
+    createdAt: nowIso,
   };
 }

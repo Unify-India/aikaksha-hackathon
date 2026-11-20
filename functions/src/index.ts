@@ -18,6 +18,7 @@ import {
   auditQuestionBatch,
   finalizeAndPublishExam,
   createAutoDpp,
+  createAndSegregateExam,
 } from './modules/exams/examTools.js';
 
 // Auto-seed Firestore collections on cold start
@@ -119,6 +120,30 @@ apiApp.post('/api/tools/create_auto_dpp', authMiddleware, async (req, res) => {
   }
 });
 
+apiApp.post('/api/exams/create-complete', authMiddleware, async (req, res) => {
+  try {
+    const teacherId = req.auth?.teacherId || 'teacher-sharma-101';
+    const result = await createAndSegregateExam(teacherId, req.body);
+    res.json(result);
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error('Failed to create complete exam:', errorMsg);
+    res.status(400).json({ error: 'CREATION_FAILED', message: errorMsg });
+  }
+});
+
+apiApp.post('/api/tools/create_complete_exam', authMiddleware, async (req, res) => {
+  try {
+    const teacherId = req.auth?.teacherId || 'teacher-sharma-101';
+    const result = await createAndSegregateExam(teacherId, req.body);
+    res.json(result);
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error('Failed to execute create_complete_exam tool:', errorMsg);
+    res.status(400).json({ error: 'TOOL_ERROR', message: errorMsg });
+  }
+});
+
 // Primary Cloud Function: Express API exported as `api`
 export const api = functions
   .region(DEPLOYMENT_REGION)
@@ -129,7 +154,7 @@ export const api = functions
 export { onExamWrite };
 
 // Review Gate and Publish Callables
-export { publishExamWithReviewGate };
+export { publishExamWithReviewGate, createAndSegregateExam };
 
 // Subjective Evaluation AI Callable
 export { evaluateSubjectiveAnswer };
