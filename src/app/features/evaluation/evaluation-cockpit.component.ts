@@ -58,9 +58,31 @@ import { EvaluationStore } from './data/evaluation.store';
         </div>
       }
 
+      @if (store.warning(); as warning) {
+        <div role="status" class="flex items-start justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+          <span>⚠ {{ warning }}</span>
+          <button type="button" class="font-semibold underline focus-visible:outline-2 focus-visible:outline-indigo-600" (click)="store.dismissWarning()">
+            Dismiss
+          </button>
+        </div>
+      }
+
       @if (store.phase() === 'setup') {
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div class="space-y-6 lg:col-span-7">
+            @if (store.busy() === 'drafting') {
+              <div role="status" class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-300 bg-indigo-50 p-4 text-sm text-indigo-950 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-100">
+                <span>
+                  <span aria-hidden="true" class="inline-block motion-safe:animate-spin">◌</span>
+                  Gemini is drafting the marking scheme from your question paper — usually 1–3 minutes.
+                </span>
+                <button type="button"
+                  class="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-sm font-semibold text-rose-800 hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:border-rose-700 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950"
+                  (click)="store.cancelDrafting()">
+                  Cancel drafting
+                </button>
+              </div>
+            }
             @if (store.pendingDraft(); as draft) {
               <app-scheme-review
                 [scheme]="draft"
@@ -71,11 +93,32 @@ import { EvaluationStore } from './data/evaluation.store';
             } @else {
               <app-scheme-picker
                 [schemes]="store.approvedSchemes()"
+                [pending]="store.pendingSchemes()"
                 [selectedId]="store.selectedSchemeId()"
                 [loading]="store.busy() === 'loading_schemes'"
                 [disabled]="store.busy() !== 'idle'"
                 (selected)="store.selectScheme($event)"
+                (reviewPending)="store.reviewPending($event)"
                 (questionPaper)="store.draftFromQuestionPaper($event)"
+              />
+            }
+            @if (store.selectedScheme() && !store.pendingDraft()) {
+              <p class="rounded-xl border border-violet-300 bg-violet-50 p-3 text-sm text-violet-950 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-100" aria-live="polite">
+                @if (store.learning().agreementPercent !== null) {
+                  <strong>AI vs teacher agreement: {{ store.learning().agreementPercent }}%</strong>
+                  ({{ store.learning().agreed }} of {{ store.learning().checked }} checked answers kept the AI's mark).
+                  {{ store.learning().corrections }} {{ store.learning().corrections === 1 ? 'correction' : 'corrections' }} will guide the next grading.
+                } @else {
+                  The AI learns from you: every mark you approve or correct guides how it grades the next sheets of this paper.
+                }
+              </p>
+            }
+            @if (store.savedSheets().length && !store.pendingDraft()) {
+              <app-class-results-table
+                heading="Saved marksheets for this question paper"
+                [sheets]="store.savedSheets()"
+                [scheme]="store.selectedScheme()"
+                (open)="openSaved($event)"
               />
             }
             <app-sheet-upload
@@ -174,6 +217,12 @@ export class EvaluationCockpitComponent {
 
   protected openStudent(submissionId: string): void {
     this.store.openSheet(submissionId);
+    this.view.set('sheet');
+  }
+
+  /** Opens a marksheet saved earlier under the selected question paper. */
+  protected openSaved(submissionId: string): void {
+    this.store.openSavedResults(submissionId);
     this.view.set('sheet');
   }
 

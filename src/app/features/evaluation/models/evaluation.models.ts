@@ -35,7 +35,8 @@ export interface IMarkingSchemeQuestion {
 }
 
 export type MarkingSchemeSource = 'workflow_a_exam' | 'question_paper';
-export type MarkingSchemeStatus = 'draft' | 'approved';
+/** draft = uploaded, Gemini still drafting · pending = drafted, waiting for teacher approval · approved = ready for grading. */
+export type MarkingSchemeStatus = 'draft' | 'pending' | 'approved';
 
 export interface IMarkingScheme {
   id: string;
@@ -50,6 +51,10 @@ export interface IMarkingScheme {
   status: MarkingSchemeStatus;
   totalMarks: number;
   questions: IMarkingSchemeQuestion[];
+  /** Storage path of the uploaded question paper PDF, when saved. */
+  filePath?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /** Where on the sheet the evidence for an answer sits. */
@@ -85,6 +90,8 @@ export interface IQuestionResult {
   evidence: IEvidenceRegion[];
   /** Marks set by the teacher in the cockpit, overriding `awarded`. */
   teacherOverride?: number;
+  /** The teacher checked a low-confidence answer and accepted the AI's marks (Review Gate). */
+  teacherVerified?: boolean;
 }
 
 export type SheetStatus = 'queued' | 'grading' | 'graded' | 'needs_review' | 'approved' | 'failed';
@@ -107,8 +114,31 @@ export interface ISheetEvaluation {
   /** 0–1 overall handwriting-reading confidence. */
   ocrConfidence: number;
   needsReview: boolean;
+  /** The teacher checked a sheet whose overall handwriting confidence was low. */
+  ocrVerified?: boolean;
   error?: string;
   approvedAt?: string;
+  /** Storage path of the original (renamed) PDF, when saved. */
+  filePath?: string;
+  updatedAt?: string;
+}
+
+/** Status stored in Firestore for a student's paper. */
+export type StoredSheetStatus = 'draft' | 'in_progress' | 'graded' | 'approved' | 'failed';
+
+/** Maps the screen's detailed sheet status onto the stored status. */
+export function toStoredSheetStatus(status: SheetStatus): StoredSheetStatus {
+  switch (status) {
+    case 'queued':
+      return 'draft';
+    case 'grading':
+      return 'in_progress';
+    case 'graded':
+    case 'needs_review':
+      return 'graded';
+    default:
+      return status;
+  }
 }
 
 /**
@@ -129,7 +159,12 @@ export interface IGradingJob {
 }
 
 /** Live progress events for the grading tool chain (same shape family as Workflow A's RunEvent). */
-export type EvaluationTool = 'draft_marking_scheme' | 'prepare_pages' | 'grade_answer_sheet' | 'flag_for_review';
+export type EvaluationTool =
+  | 'draft_marking_scheme'
+  | 'apply_teacher_feedback'
+  | 'prepare_pages'
+  | 'grade_answer_sheet'
+  | 'flag_for_review';
 
 export type EvaluationRunEvent =
   | { type: 'tool_started'; tool: EvaluationTool; submissionId?: string; at: number }

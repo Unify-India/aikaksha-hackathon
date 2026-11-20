@@ -105,5 +105,22 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isAdmin() || resource.data.teacherId == request.auth.uid);
       allow write: if isAuthenticated() && (isAdmin() || request.resource.data.teacherId == request.auth.uid);
     }
+
+    // Workflow B — question papers and the student answer sheets graded against them.
+    // ⚠ HACKATHON POC: OPEN ACCESS WITHOUT LOGIN. Anyone with the web config can read and write here.
+    // Open access switches itself OFF on 2026-12-20 (cost/abuse safety). Replace with teacher-only rules (isTeacher()) once the app uses Firebase Auth.
+    match /question_papers/{paperId} {
+      allow read: if request.time < timestamp.date(2026, 12, 20);
+      allow create, update: if request.time < timestamp.date(2026, 12, 20)
+        && request.resource.data.status in ['draft', 'pending', 'approved'];
+      allow delete: if false;
+
+      match /answer_sheets/{sheetId} {
+        allow read: if request.time < timestamp.date(2026, 12, 20);
+        allow create, update: if request.time < timestamp.date(2026, 12, 20)
+          && request.resource.data.storedStatus in ['draft', 'in_progress', 'graded', 'approved', 'failed'];
+        allow delete: if false;
+      }
+    }
   }
 }

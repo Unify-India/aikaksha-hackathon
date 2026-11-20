@@ -9,6 +9,7 @@ import {
 import { sha256Hex } from './checksum';
 import type {
   EvaluationBackend,
+  IGradingOptions,
   IStartedJob,
   IUploadSheet,
   RunEventHandler,
@@ -34,16 +35,16 @@ export class HttpEvaluationBackend implements EvaluationBackend {
     return this.request<IMarkingScheme[]>('GET', '/schemes');
   }
 
-  async draftScheme(questionPaper: File, onEvent: RunEventHandler): Promise<IMarkingScheme> {
+  async draftScheme(questionPaper: File, onEvent: RunEventHandler, signal?: AbortSignal): Promise<IMarkingScheme> {
     const body = new FormData();
     body.append('questionPaper', questionPaper);
-    const { runId } = await this.request<{ runId: string }>('POST', '/schemes/draft', body);
+    const { runId } = await this.request<{ runId: string }>('POST', '/schemes/draft', body, signal);
 
     let drafted: IMarkingScheme | undefined;
     await this.followRun(runId, (event) => {
       if (event.type === 'scheme_drafted') drafted = event.scheme;
       onEvent(event);
-    });
+    }, signal);
     if (!drafted) throw new Error('The server finished without returning a marking scheme.');
     return drafted;
   }
@@ -58,11 +59,14 @@ export class HttpEvaluationBackend implements EvaluationBackend {
    * One small request per paper keeps us under Firebase HTTP function limits (~10 MB, 300 s).
    */
   async startGrading(
-    schemeId: string,
+    scheme: IMarkingScheme,
     uploads: IUploadSheet[],
     onEvent: RunEventHandler,
+    options?: IGradingOptions,
   ): Promise<IStartedJob> {
-    const jobId = `job-${Date.now()}`;
+    const schemeId = scheme.id;
+    const teacherExamples = JSON.stringify(options?.teacherExamples ?? []);
+    const jobId = `job-${Date.now().toString(36)}`;
     const sheets: ISheetEvaluation[] = uploads.map((u, i) => ({
       submissionId: `${jobId}-${i + 1}`,
       jobId,
@@ -84,14 +88,19 @@ export class HttpEvaluationBackend implements EvaluationBackend {
     const done = (async () => {
       await new Promise((r) => setTimeout(r, 50)); // let the caller store the job first
       for (const [i, sheet] of sheets.entries()) {
-        await this.gradeOne(sheet, uploads[i], onEvent);
+        await this.gradeOne(sheet, uploads[i], onEvent, teacherExamples);
       }
       onEvent({ type: 'run_completed', jobId });
     })();
     return { job, done };
   }
 
-  private async gradeOne(sheet: ISheetEvaluation, upload: IUploadSheet, onEvent: RunEventHandler): Promise<void> {
+  private async gradeOne(
+    sheet: ISheetEvaluation,
+    upload: IUploadSheet,
+    onEvent: RunEventHandler,
+    teacherExamples: string,
+  ): Promise<void> {
     const { submissionId } = sheet;
     onEvent({ type: 'sheet_updated', sheet: { ...sheet, status: 'grading' } });
 
@@ -119,6 +128,7 @@ export class HttpEvaluationBackend implements EvaluationBackend {
       body.append('studentLabel', sheet.studentLabel);
       body.append('checksum', checksum);
       body.append('pageCount', String(pages.length));
+      body.append('teacherExamples', teacherExamples);
       pages.forEach((page, i) => body.append('pages', page, `page-${String(i + 1).padStart(2, '0')}.jpg`));
       const graded = await this.request<ISheetEvaluation>('POST', '/sheets/grade', body);
       onEvent({
@@ -147,10 +157,19 @@ export class HttpEvaluationBackend implements EvaluationBackend {
   }
 
   /** Streams Server-Sent Events for a run until `run_completed` (or a connection error). */
-  private followRun(runId: string, onEvent: RunEventHandler): Promise<void> {
+  private followRun(runId: string, onEvent: RunEventHandler, signal?: AbortSignal): Promise<void> {
     const url = `${this.base}/runs/${encodeURIComponent(runId)}/events?token=${encodeURIComponent(this.token)}`;
     return new Promise((resolve, reject) => {
       const source = new EventSource(url);
+      signal?.addEventListener(
+        'abort',
+        () => {
+          source.close();
+          onEvent({ type: 'tool_failed', tool: 'draft_marking_scheme', error: 'Cancelled by the teacher' });
+          reject(signal.reason);
+        },
+        { once: true },
+      );
       source.onmessage = (message: MessageEvent<string>) => {
         const event = JSON.parse(message.data) as EvaluationRunEvent;
         onEvent(event);
@@ -166,7 +185,7 @@ export class HttpEvaluationBackend implements EvaluationBackend {
     });
   }
 
-  private async request<T>(method: string, path: string, body?: FormData | object): Promise<T> {
+  private async request<T>(method: string, path: string, body?: FormData | object, signal?: AbortSignal): Promise<T> {
     const headers: Record<string, string> = { Authorization: `Bearer ${this.token}` };
     let payload: BodyInit | undefined;
     if (body instanceof FormData) {
@@ -175,7 +194,7 @@ export class HttpEvaluationBackend implements EvaluationBackend {
       headers['Content-Type'] = 'application/json';
       payload = JSON.stringify(body);
     }
-    const response = await fetch(`${this.base}${path}`, { method, headers, body: payload });
+    const response = await fetch(`${this.base}${path}`, { method, headers, body: payload, signal });
     if (!response.ok) {
       const error = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
       throw new Error(error?.error?.message ?? `Server error ${response.status}`);

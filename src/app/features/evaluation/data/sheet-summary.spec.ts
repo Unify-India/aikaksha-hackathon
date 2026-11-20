@@ -1,5 +1,5 @@
 import { IQuestionResult, ISheetEvaluation } from '../models/evaluation.models';
-import { summariseSheet } from './sheet-summary';
+import { isAnswerFlagged, summariseSheet } from './sheet-summary';
 
 const question = (id: string, awarded: number, confidence: number, teacherOverride?: number): IQuestionResult => ({
   questionId: id,
@@ -44,5 +44,26 @@ describe('summariseSheet', () => {
 
   it('flags sheets whose handwriting was hard to read', () => {
     expect(summariseSheet(sheet([question('a', 3, 0.95)], 0.4)).needsReview).toBe(true);
+  });
+
+  it('uses a 90% cut-off, and a teacher check clears the flag without changing marks', () => {
+    expect(isAnswerFlagged(question('a', 3, 0.89))).toBe(true);
+    expect(isAnswerFlagged(question('a', 3, 0.9))).toBe(false);
+    const checked = { ...question('a', 3, 0.5), teacherVerified: true };
+    expect(isAnswerFlagged(checked)).toBe(false);
+    expect(summariseSheet(sheet([checked])).totalAwarded).toBe(3);
+  });
+
+  it('moves a sheet from needs_review to graded (never approved) once every flag is cleared', () => {
+    const flagged = summariseSheet({ ...sheet([question('a', 3, 0.5)]), status: 'needs_review' });
+    expect(flagged.status).toBe('needs_review');
+    const cleared = summariseSheet({ ...flagged, questions: [{ ...flagged.questions[0], teacherVerified: true }] });
+    expect(cleared).toMatchObject({ status: 'graded', needsReview: false });
+    expect(summariseSheet({ ...cleared, status: 'approved' }).status).toBe('approved');
+  });
+
+  it('flags hard-to-read handwriting until the teacher checks the sheet', () => {
+    expect(summariseSheet(sheet([question('a', 3, 0.95)], 0.85)).needsReview).toBe(true);
+    expect(summariseSheet({ ...sheet([question('a', 3, 0.95)], 0.85), ocrVerified: true }).needsReview).toBe(false);
   });
 });

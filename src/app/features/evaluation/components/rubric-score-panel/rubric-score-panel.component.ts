@@ -1,6 +1,6 @@
 import { Component, computed, input, linkedSignal, output, signal } from '@angular/core';
 import { FieldTree, FormField, applyEach, form, max, min, readonly } from '@angular/forms/signals';
-import { REVIEW_CONFIDENCE_THRESHOLD } from '../../data/sheet-summary';
+import { isAnswerFlagged } from '../../data/sheet-summary';
 import {
   IMarkingScheme,
   IMarkingSchemeQuestion,
@@ -218,7 +218,7 @@ export class RubricScorePanelComponent {
   }
 
   protected isFlagged(result: IQuestionResult): boolean {
-    return result.confidence < REVIEW_CONFIDENCE_THRESHOLD && result.teacherOverride === undefined;
+    return isAnswerFlagged(result);
   }
 
   protected verdictLabel(verdict: QuestionVerdict) {

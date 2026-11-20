@@ -139,17 +139,17 @@ export class GeminiService {
   }
 
   /** Turns a PDF/photo into a request part: inline when small, uploaded via the Files API when large. */
-  async fileToPart(file: Blob, mimeType = file.type, displayName = 'upload'): Promise<GeminiPart> {
+  async fileToPart(file: Blob, mimeType = file.type, displayName = 'upload', signal?: AbortSignal): Promise<GeminiPart> {
     this.assertConfigured();
     if (file.size <= INLINE_LIMIT_BYTES) {
       return { inlineData: { mimeType, data: await blobToBase64(file) } };
     }
-    const uploaded = await this.uploadFile(file, mimeType, displayName);
+    const uploaded = await this.uploadFile(file, mimeType, displayName, signal);
     return { fileData: { mimeType: uploaded.mimeType, fileUri: uploaded.uri } };
   }
 
   /** Resumable upload to the Gemini Files API (files auto-delete after 48 h). */
-  private async uploadFile(file: Blob, mimeType: string, displayName: string): Promise<GeminiUploadedFile> {
+  private async uploadFile(file: Blob, mimeType: string, displayName: string, signal?: AbortSignal): Promise<GeminiUploadedFile> {
     const origin = new URL(this.config.endpoint).origin;
     const start = await this.fetchWithRetry(`${origin}/upload/v1beta/files`, {
       method: 'POST',
@@ -162,6 +162,7 @@ export class GeminiService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ file: { display_name: displayName } }),
+      signal,
     });
     const uploadUrl = start.headers.get('x-goog-upload-url');
     if (!uploadUrl) throw new GeminiError('Gemini file upload did not return an upload URL.');
@@ -170,14 +171,17 @@ export class GeminiService {
       method: 'POST',
       headers: { 'X-Goog-Upload-Offset': '0', 'X-Goog-Upload-Command': 'upload, finalize' },
       body: file,
+      signal,
     });
     let uploaded = ((await finish.json()) as { file: GeminiUploadedFile }).file;
 
     // Large PDFs are processed asynchronously; wait until Gemini can read them.
     for (let i = 0; uploaded.state === 'PROCESSING' && i < 60; i++) {
       await delay(2000);
+      signal?.throwIfAborted();
       const poll = await this.fetchWithRetry(`${this.config.endpoint}/${uploaded.name}`, {
         headers: { 'x-goog-api-key': this.config.apiKey },
+        signal,
       });
       uploaded = (await poll.json()) as GeminiUploadedFile;
     }
@@ -201,7 +205,9 @@ export class GeminiService {
       if (response.ok) return response;
       const retryable = response.status === 429 || response.status >= 500;
       if (!retryable || attempt >= MAX_ATTEMPTS) throw await toGeminiError(response);
+      init.signal?.throwIfAborted();
       await delay(1500 * 2 ** (attempt - 1) + Math.random() * 500);
+      init.signal?.throwIfAborted();
     }
   }
 

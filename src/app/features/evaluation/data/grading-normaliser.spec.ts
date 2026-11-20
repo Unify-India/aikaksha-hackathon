@@ -1,4 +1,4 @@
-import { normaliseDraftScheme, normaliseGrading, normaliseOption } from './grading-normaliser';
+import { normaliseDraftScheme, normaliseGrading, normaliseOption, sectionLetter } from './grading-normaliser';
 import { SAMPLE_MATHS_SCHEME } from './evaluation-fixtures.testing';
 import { preprocessJsonString, parseJsonResponse } from '../../../core/services/ai/gemini.service';
 
@@ -107,7 +107,11 @@ describe('normaliseDraftScheme', () => {
     expect(scheme.questions[1].steps).toEqual([{ id: 'B2-1', description: 'part i', marks: 2 }]);
     expect(scheme.questions[2].steps).toEqual([{ id: 'B3-1', description: 'Complete, correct answer', marks: 2 }]);
     expect(scheme.totalMarks).toBe(7);
-    expect(scheme.status).toBe('draft');
+    expect(scheme.status).toBe('pending');
+  });
+
+  it('reads section letters from headings like "SECTION – A"', () => {
+    expect(['SECTION – A', 'Section-B', 'SEC. C', 'Part D', 'a', ''].map(sectionLetter)).toEqual(['A', 'B', 'C', 'D', 'A', '']);
   });
 
   it('reads option letters loosely', () => {
