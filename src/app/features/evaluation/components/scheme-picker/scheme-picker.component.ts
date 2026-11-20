@@ -22,8 +22,9 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
         <fieldset class="mt-4 space-y-2">
           <legend class="sr-only">Approved marking schemes</legend>
           @for (scheme of schemes(); track scheme.id) {
+            <div class="flex flex-wrap items-center gap-2">
             <label
-              class="flex cursor-pointer items-start gap-3 rounded-xl border p-3 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-indigo-600"
+              class="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl border p-3 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-indigo-600"
               [class]="
                 scheme.id === selectedId()
                   ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40'
@@ -56,6 +57,17 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
                 </span>
               </span>
             </label>
+            <button type="button"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+              [attr.aria-label]="'View answers (marking scheme) for ' + scheme.title"
+              (click)="viewAnswers.emit(scheme.id)">
+              View answers
+            </button>
+            @if (paperUrls()[scheme.id]; as url) {
+              <a class="rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:border-sky-700 dark:bg-slate-900 dark:text-sky-200 dark:hover:bg-sky-950" [href]="url" target="_blank" rel="noopener"
+                  [attr.aria-label]="'View question paper ' + scheme.title + ' (opens in a new tab)'">View question paper ↗</a>
+            }
+            </div>
           }
         </fieldset>
       } @else if (!loading()) {
@@ -74,6 +86,11 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
                     Drafted by Gemini · {{ scheme.questions.length }} questions · {{ scheme.totalMarks }} marks
                   </span>
                 </span>
+                <span class="flex flex-wrap gap-2">
+                @if (paperUrls()[scheme.id]; as url) {
+                  <a class="rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:border-sky-700 dark:bg-slate-900 dark:text-sky-200 dark:hover:bg-sky-950" [href]="url" target="_blank" rel="noopener"
+                  [attr.aria-label]="'View question paper ' + scheme.title + ' (opens in a new tab)'">View question paper ↗</a>
+                }
                 <button type="button"
                   class="rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
                   [disabled]="disabled()"
@@ -81,6 +98,7 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
                   (click)="reviewPending.emit(scheme.id)">
                   Review
                 </button>
+                </span>
               </li>
             }
           </ul>
@@ -103,6 +121,8 @@ export class SchemePickerComponent {
   readonly schemes = input.required<IMarkingScheme[]>();
   /** Drafted schemes saved but not yet approved. */
   readonly pending = input<IMarkingScheme[]>([]);
+  /** paperId → link to its question paper PDF. */
+  readonly paperUrls = input<Record<string, string>>({});
   readonly selectedId = input<string | null>(null);
   readonly loading = input(false);
   readonly disabled = input(false);
@@ -110,4 +130,5 @@ export class SchemePickerComponent {
   readonly selected = output<string>();
   readonly questionPaper = output<File>();
   readonly reviewPending = output<string>();
+  readonly viewAnswers = output<string>();
 }

@@ -69,7 +69,7 @@ import { EvaluationStore } from './data/evaluation.store';
 
       @if (store.phase() === 'setup') {
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div class="space-y-6 lg:col-span-7">
+          <div class="min-w-0 space-y-6 lg:col-span-7">
             @if (store.busy() === 'drafting') {
               <div role="status" class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-300 bg-indigo-50 p-4 text-sm text-indigo-950 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-100">
                 <span>
@@ -87,22 +87,32 @@ import { EvaluationStore } from './data/evaluation.store';
               <app-scheme-review
                 [scheme]="draft"
                 [busy]="store.busy() === 'approving'"
+                [questionPaperUrl]="store.paperUrls()[draft.id] ?? null"
                 (approve)="store.approveDraft($event)"
                 (discard)="store.discardDraft()"
+              />
+            } @else if (store.viewingScheme(); as viewing) {
+              <app-scheme-review
+                [scheme]="viewing"
+                [readOnly]="true"
+                [questionPaperUrl]="store.paperUrls()[viewing.id] ?? null"
+                (discard)="store.closeSchemeView()"
               />
             } @else {
               <app-scheme-picker
                 [schemes]="store.approvedSchemes()"
                 [pending]="store.pendingSchemes()"
+                [paperUrls]="store.paperUrls()"
                 [selectedId]="store.selectedSchemeId()"
                 [loading]="store.busy() === 'loading_schemes'"
                 [disabled]="store.busy() !== 'idle'"
                 (selected)="store.selectScheme($event)"
                 (reviewPending)="store.reviewPending($event)"
+                (viewAnswers)="store.viewScheme($event)"
                 (questionPaper)="store.draftFromQuestionPaper($event)"
               />
             }
-            @if (store.selectedScheme() && !store.pendingDraft()) {
+            @if (store.selectedScheme() && !store.pendingDraft() && !store.viewingScheme()) {
               <p class="rounded-xl border border-violet-300 bg-violet-50 p-3 text-sm text-violet-950 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-100" aria-live="polite">
                 @if (store.learning().agreementPercent !== null) {
                   <strong>AI vs teacher agreement: {{ store.learning().agreementPercent }}%</strong>
@@ -113,7 +123,7 @@ import { EvaluationStore } from './data/evaluation.store';
                 }
               </p>
             }
-            @if (store.savedSheets().length && !store.pendingDraft()) {
+            @if (store.savedSheets().length && !store.pendingDraft() && !store.viewingScheme()) {
               <app-class-results-table
                 heading="Saved marksheets for this question paper"
                 [sheets]="store.savedSheets()"
@@ -128,7 +138,7 @@ import { EvaluationStore } from './data/evaluation.store';
               (start)="store.startGrading($event)"
             />
           </div>
-          <div class="lg:col-span-5">
+          <div class="min-w-0 lg:col-span-5">
             <app-grading-activity [entries]="store.activity()" />
           </div>
         </div>
@@ -170,7 +180,7 @@ import { EvaluationStore } from './data/evaluation.store';
         />
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div class="lg:col-span-2">
+          <div class="min-w-0 lg:col-span-2">
             <app-class-roster
               [sheets]="store.sheets()"
               [activeId]="store.activeSheetId()"
@@ -178,7 +188,7 @@ import { EvaluationStore } from './data/evaluation.store';
               (selected)="store.openSheet($event)"
             />
           </div>
-          <div class="lg:col-span-6">
+          <div class="min-w-0 lg:col-span-6">
             <app-answer-sheet-viewer
               [file]="store.activeFile()"
               [sheet]="store.activeSheet()"
@@ -187,7 +197,7 @@ import { EvaluationStore } from './data/evaluation.store';
               (questionSelected)="selectQuestion($event)"
             />
           </div>
-          <div class="lg:col-span-4">
+          <div class="min-w-0 lg:col-span-4">
             <app-rubric-score-panel
               [sheet]="store.activeSheet()"
               [scheme]="store.jobScheme()"

@@ -76,6 +76,25 @@ export class PdfDocumentService {
     return { page, url: URL.createObjectURL(blob), width: targetWidth, height: 0 };
   }
 
+  /** Renders one page onto a new canvas about `targetWidth` pixels wide, on a white background. */
+  async renderToCanvas(doc: PDFDocumentProxy, page: number, targetWidth: number): Promise<HTMLCanvasElement> {
+    const pdfPage = await doc.getPage(page);
+    const base = pdfPage.getViewport({ scale: 1 });
+    const viewport = pdfPage.getViewport({ scale: targetWidth / base.width });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    // White first: JPEG has no transparency, so empty areas would otherwise turn black.
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    await pdfPage.render({ canvas, viewport }).promise;
+    pdfPage.cleanup();
+    return canvas;
+  }
+
   private async renderToBlob(
     doc: PDFDocumentProxy,
     page: number,
@@ -83,22 +102,7 @@ export class PdfDocumentService {
     type: 'image/png' | 'image/jpeg',
     quality?: number,
   ): Promise<Blob> {
-    const pdfPage = await doc.getPage(page);
-    const base = pdfPage.getViewport({ scale: 1 });
-    const viewport = pdfPage.getViewport({ scale: targetWidth / base.width });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    if (type === 'image/jpeg') {
-      // JPEG has no transparency: paint white first so empty areas are not black.
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-    }
-    await pdfPage.render({ canvas, viewport }).promise;
-    pdfPage.cleanup();
+    const canvas = await this.renderToCanvas(doc, page, targetWidth);
     return new Promise<Blob>((resolve, reject) =>
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Page render failed'))), type, quality),
     );

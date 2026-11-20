@@ -81,6 +81,10 @@ export class EvaluationStore {
   readonly selectedSchemeId = signal<string | null>(null);
   /** A drafted scheme open for the teacher to check and approve. */
   readonly pendingDraft = signal<IMarkingScheme | null>(null);
+  /** An approved scheme opened read-only ("View answers"). */
+  readonly viewingScheme = signal<IMarkingScheme | null>(null);
+  /** paperId → link that opens its question paper PDF in a new tab. */
+  readonly paperUrls = signal<Record<string, string>>({});
   /** Student papers already saved under the selected question paper. */
   readonly savedSheets = signal<ISheetEvaluation[]>([]);
 
@@ -117,6 +121,7 @@ export class EvaluationStore {
     await this.run('loading_schemes', async () => {
       const schemes = this.persist ? await this.repo.listPapers() : await this.backend.listSchemes();
       this.schemes.set(schemes);
+      void this.resolvePaperUrls(schemes);
       if (!this.selectedSchemeId()) {
         const first = schemes.find((s) => s.status === 'approved');
         if (first) await this.selectScheme(first.id);
@@ -136,6 +141,14 @@ export class EvaluationStore {
     }
   }
 
+  viewScheme(id: string): void {
+    this.viewingScheme.set(this.schemes().find((s) => s.id === id) ?? null);
+  }
+
+  closeSchemeView(): void {
+    this.viewingScheme.set(null);
+  }
+
   /** Opens a pending (drafted, not yet approved) scheme for review. */
   reviewPending(id: string): void {
     this.pendingDraft.set(this.schemes().find((s) => s.id === id) ?? null);
@@ -152,9 +165,11 @@ export class EvaluationStore {
     await this.run('drafting', async () => {
       // 1. Save the question paper as 'draft' (and its PDF) before Gemini starts.
       let paperId: string | null = null;
+      let paperFileSaved = false;
       if (this.persist) {
         const created = await this.repo.createPaper(file);
         paperId = created.id;
+        paperFileSaved = created.fileSaved;
         if (!created.fileSaved) this.warning.set(STORAGE_WARNING);
       }
       if (cancel.signal.aborted) return;
@@ -167,10 +182,16 @@ export class EvaluationStore {
         throw e;
       }
       if (cancel.signal.aborted) return;
-      const draft: IMarkingScheme = { ...drafted, id: paperId ?? drafted.id, status: 'pending' };
+      const draft: IMarkingScheme = {
+        ...drafted,
+        id: paperId ?? drafted.id,
+        status: 'pending',
+        ...(paperId && paperFileSaved ? { filePath: `question_papers/${paperId}/question-paper.pdf` } : {}),
+      };
       if (this.persist) await this.repo.savePaper(draft);
       this.schemes.update((list) => [draft, ...list.filter((s) => s.id !== draft.id)]);
       this.pendingDraft.set(draft);
+      void this.resolvePaperUrls([draft]);
     });
     if (this.draftAbort === cancel) this.draftAbort = null;
   }
@@ -388,6 +409,20 @@ export class EvaluationStore {
 
   dismissWarning(): void {
     this.warning.set(null);
+  }
+
+  /** Looks up "view" links for question papers whose PDF is saved (failures just hide the link). */
+  private async resolvePaperUrls(papers: IMarkingScheme[]): Promise<void> {
+    if (!this.persist) return;
+    for (const paper of papers) {
+      if (!paper.filePath || this.paperUrls()[paper.id]) continue;
+      try {
+        const url = await this.repo.fileUrl(paper.filePath);
+        this.paperUrls.update((all) => ({ ...all, [paper.id]: url }));
+      } catch {
+        // No link: the PDF may not exist (e.g. Storage was off when it was uploaded).
+      }
+    }
   }
 
   /** Downloads a saved sheet's PDF from Storage the first time it is opened. */
