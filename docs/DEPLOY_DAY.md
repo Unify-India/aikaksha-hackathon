@@ -8,8 +8,8 @@ Run these in order from the repo root. Everything above the line is already veri
 - `npx ng build` then `firebase emulators:start --only hosting --project abhyas-unify` -> site served on http://127.0.0.1:5050, every route returns the app (SPA rewrite works).
 - Firestore `(default)` exists in `abhyas-unify` (asia-south1). Rules deployed.
 
-## Blockers to clear first (ask Sandeep)
-1. **Project**: `.firebaserc` says `ai-kaksha-poc`; we have access to `abhyas-unify`. Agree one, update `.firebaserc`.
+## Blockers still open (Sandeep will provide Blaze + key later)
+1. ~~Project~~ **Decided: `abhyas-unify`** (`.firebaserc` updated). Hosting URL will be https://abhyas-unify.web.app.
 2. **Blaze plan** on that project (Cloud Functions + Secret Manager need billing).
 3. **Gemini API key**, sent privately.
 4. **Secret wiring**: code reads `process.env.GEMINI_API_KEY`. For deployed v1 functions it must be declared, e.g. `.runWith({ timeoutSeconds: 300, memory: '1GB', secrets: ['GEMINI_API_KEY'] })` in `functions/src/index.ts` (Sandeep owns that file).
