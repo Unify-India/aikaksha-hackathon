@@ -6,12 +6,15 @@ export interface FirebaseEnvironmentConfig {
   messagingSenderId: string;
   appId: string;
   databaseURL?: string;
+  measurementId?: string;
 }
 
 export interface GeminiEnvironmentConfig {
   apiKey: string;
   model: 'gemini-2.5-flash' | 'gemini-1.5-pro' | string;
   endpoint: string;
+  /** Gemini Live (bidiGenerateContent) model with native audio, used by the Voice Copilot. */
+  liveModel: string;
 }
 
 export interface McpEnvironmentConfig {
@@ -25,10 +28,20 @@ export interface FeatureFlagsEnvironmentConfig {
   multiChannelPublish: boolean;
 }
 
+/** Exam creation REST API (docs/UI_EXAM_CREATION_INTEGRATION_GUIDE.md). */
+export interface ExamApiEnvironmentConfig {
+  /** Cloud Function base, e.g. https://us-central1-<project>.cloudfunctions.net/api (routes add /api/...). */
+  baseUrl: string;
+  /** Demo bearer token accepted by functions/src/auth/middleware.ts; replace with a Firebase ID token later. */
+  demoToken: string;
+  tenantId: string;
+}
+
 export interface AppEnvironment {
   production: boolean;
   firebase: FirebaseEnvironmentConfig;
   gemini: GeminiEnvironmentConfig;
   mcp: McpEnvironmentConfig;
+  examApi: ExamApiEnvironmentConfig;
   features: FeatureFlagsEnvironmentConfig;
 }
