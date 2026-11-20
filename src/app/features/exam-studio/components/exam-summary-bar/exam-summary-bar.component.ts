@@ -9,13 +9,14 @@ import { AppButtonComponent } from '../../../../shared/components/app-button/app
   standalone: true,
   imports: [CommonModule, StatusBadgeComponent, AppButtonComponent],
   template: `
-    <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all dark:border-slate-800 dark:bg-slate-900">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <!-- Title & Batch Context -->
+    <section class="lift overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Exam summary">
+      <div class="h-1.5 bg-linear-to-r from-indigo-500 via-violet-500 to-sky-400" aria-hidden="true"></div>
+      <div class="p-5">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div class="flex flex-wrap items-center gap-2.5">
-            <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {{ exam()?.title || 'Untitled Practice Exam' }}
+          <div class="flex flex-wrap items-center gap-3">
+            <h1 class="text-2xl md:text-3xl">
+              {{ exam()?.title || 'Untitled practice exam' }}
             </h1>
             <app-status-badge
               [label]="exam()?.status || 'draft'"
@@ -23,74 +24,50 @@ import { AppButtonComponent } from '../../../../shared/components/app-button/app
             />
           </div>
 
-          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-            <span class="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
-              👥 Batch Lakshya 2026 (Physics)
-            </span>
-            <span>&bull;</span>
-            <span>Subject: <strong class="text-slate-700 dark:text-slate-300">{{ exam()?.subject || 'Physics' }}</strong></span>
-            <span>&bull;</span>
-            <span>Pattern: <strong class="text-slate-700 dark:text-slate-300">{{ exam()?.examPattern || 'NEET' }}</strong></span>
-            <span>&bull;</span>
-            <span>Created: {{ exam()?.date || 'Today' }}</span>
-          </div>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            Batch Lakshya 2026, {{ exam()?.subject || 'Physics' }}, {{ exam()?.examPattern || 'NEET' }} pattern. Created {{ exam()?.date || 'today' }}.
+          </p>
         </div>
 
-        <!-- Metric Badges Group -->
-        <div class="flex flex-wrap items-center gap-3">
-          <!-- Target vs Actual Count -->
-          <div class="rounded-xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-2 text-center dark:border-slate-800 dark:bg-slate-800/40">
-            <span class="text-[11px] font-medium text-slate-400 block">Questions</span>
-            <span class="text-sm font-bold text-slate-800 dark:text-slate-200">
-              <span [class]="countMismatch() ? 'text-amber-600' : 'text-emerald-600'">{{ actualCount() }}</span>
-              <span class="text-slate-400"> / {{ exam()?.targetQuestions ?? 15 }}</span>
-            </span>
-          </div>
-
-          <!-- Total Marks -->
-          <div class="rounded-xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-2 text-center dark:border-slate-800 dark:bg-slate-800/40">
-            <span class="text-[11px] font-medium text-slate-400 block">Total Marks</span>
-            <span class="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-              {{ totalMarks() }} pts
-            </span>
-          </div>
-
-          <!-- Duration Timer -->
-          <div class="rounded-xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-2 text-center dark:border-slate-800 dark:bg-slate-800/40">
-            <span class="text-[11px] font-medium text-slate-400 block">Duration</span>
-            <span class="text-sm font-bold text-slate-800 dark:text-slate-200">
-              ⏱️ {{ exam()?.duration ?? 45 }}m
-            </span>
-          </div>
-
-          <!-- Time-Lock Window -->
-          <div class="rounded-xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-2 text-center dark:border-slate-800 dark:bg-slate-800/40">
-            <span class="text-[11px] font-medium text-slate-400 block">Time-Lock Window</span>
-            <span class="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">
-              {{ exam()?.startTime || '10:00' }} – {{ exam()?.endTime || '10:45' }}
-            </span>
-          </div>
-
-          <!-- Actions: Export & Human Gate Modal Trigger -->
-          <div class="flex items-center gap-2 pl-2">
-            <app-button
-              variant="secondary"
-              size="sm"
-              icon="📄"
-              label="PDF"
-              (clicked)="exportPdf.emit()"
-            />
-            <app-button
-              variant="primary"
-              size="sm"
-              icon="🚀"
-              label="Review & Publish"
-              (clicked)="openPublishModal.emit()"
-            />
-          </div>
+        <div class="flex items-center gap-2">
+          <app-button
+            variant="secondary"
+            size="sm"
+            label="Export PDF"
+            (clicked)="exportPdf.emit()"
+          />
+          <app-button
+            variant="primary"
+            size="sm"
+            label="Review and publish"
+            (clicked)="openPublishModal.emit()"
+          />
         </div>
       </div>
-    </div>
+
+      <dl class="mt-5 flex flex-wrap gap-x-10 gap-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+        <div>
+          <dt class="text-xs text-slate-600 dark:text-slate-400">Questions</dt>
+          <dd class="mt-0.5 text-sm font-medium">
+            <span [class]="countMismatch() ? 'text-amber-800 dark:text-amber-300' : 'text-emerald-800 dark:text-emerald-300'">{{ actualCount() }}</span>
+            of {{ exam()?.targetQuestions ?? 15 }}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs text-slate-600 dark:text-slate-400">Total marks</dt>
+          <dd class="mt-0.5 text-sm font-semibold text-indigo-700 dark:text-indigo-300">{{ totalMarks() }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-slate-600 dark:text-slate-400">Duration</dt>
+          <dd class="mt-0.5 text-sm font-medium">{{ exam()?.duration ?? 45 }} minutes</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-slate-600 dark:text-slate-400">Submission window</dt>
+          <dd class="mt-0.5 font-mono text-sm font-medium">{{ exam()?.startTime || '10:00' }} to {{ exam()?.endTime || '10:45' }}</dd>
+        </div>
+      </dl>
+      </div>
+    </section>
   `,
 })
 export class ExamSummaryBarComponent {

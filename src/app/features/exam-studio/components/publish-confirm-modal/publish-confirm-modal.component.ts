@@ -2,108 +2,86 @@ import { Component, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IExam } from '../../../../shared/models/exam.model';
 import { AppButtonComponent } from '../../../../shared/components/app-button/app-button.component';
-import { StatusBadgeComponent } from '../../../../shared/components/status-badge.component';
 
 @Component({
   selector: 'app-publish-confirm-modal',
   standalone: true,
-  imports: [CommonModule, AppButtonComponent, StatusBadgeComponent],
+  imports: [CommonModule, AppButtonComponent],
   template: `
     @if (isOpen()) {
-      <!-- Backdrop -->
       <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs transition-opacity duration-200"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
         (click)="onBackdropClick($event)"
       >
-        <!-- Modal Dialog Surface -->
         <div
-          class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl transition-all duration-200 dark:border-slate-800 dark:bg-slate-900"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="publish-title"
+          class="relative w-full max-w-lg rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"
           (click)="$event.stopPropagation()"
         >
-          <!-- Header -->
-          <div class="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div class="flex items-center gap-2.5">
-              <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-                🛡️
-              </span>
-              <div>
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">
-                  Teacher Review Gate: Publish Confirmation
-                </h3>
-                <p class="text-xs text-slate-500">Human-in-the-loop signing before dispatching to student portal</p>
-              </div>
+          <div class="flex items-start justify-between gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
+            <div>
+              <h3 id="publish-title" class="font-serif text-xl font-medium">Publish this exam?</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Once you confirm, it goes to the student portal.</p>
             </div>
 
             <button
               type="button"
               (click)="closeModal.emit()"
-              class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer"
+              aria-label="Close"
+              class="cursor-pointer rounded-md p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
             >
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-          <!-- Body Info -->
-          <div class="mt-4 space-y-4 text-xs">
-            <!-- Exam Meta Summary -->
-            <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
-              <div class="flex items-center justify-between font-semibold text-slate-800 dark:text-slate-200">
-                <span>{{ exam()?.title || 'NEET Practice: Electrostatics DPP' }}</span>
-                <span class="text-indigo-600 dark:text-indigo-400">{{ questionCount() }} Questions</span>
-              </div>
-              <div class="mt-1 flex items-center gap-2 text-slate-500">
-                <span>Batch: <strong class="text-slate-700 dark:text-slate-300">Lakshya 2026</strong></span>
-                <span>&bull;</span>
-                <span>Time: {{ exam()?.startTime || '10:00' }} - {{ exam()?.endTime || '10:45' }}</span>
-              </div>
-            </div>
-
-            <!-- SHA-256 Draft Checksum Verification -->
-            <div class="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3.5 dark:border-indigo-900/40 dark:bg-indigo-950/20">
-              <div class="flex items-center justify-between">
-                <span class="font-bold text-indigo-900 dark:text-indigo-200">SHA-256 Draft Content Hash:</span>
-                <app-status-badge label="Tamper Proof" variant="success" />
-              </div>
-              <p class="mt-1 font-mono text-[11px] text-indigo-700 dark:text-indigo-300 break-all select-all">
-                {{ contentHash() }}
-              </p>
-              <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                Cryptographic signature guaranteeing identical questions are delivered across OMR and Digital portals.
+          <div class="mt-4 space-y-5 text-sm">
+            <div>
+              <p class="font-medium">{{ exam()?.title || 'NEET Practice: Electrostatics DPP' }}</p>
+              <p class="mt-0.5 text-slate-600 dark:text-slate-400">
+                {{ questionCount() }} questions, Batch Lakshya 2026, {{ exam()?.startTime || '10:00' }} to {{ exam()?.endTime || '10:45' }}
               </p>
             </div>
 
-            <!-- Security Acknowledgement Checklist -->
-            <div class="space-y-2">
-              <label class="flex items-start gap-2.5 cursor-pointer">
+            <div class="border-l-2 border-slate-300 pl-4 dark:border-slate-600">
+              <p class="text-xs font-medium text-slate-600 dark:text-slate-400">Content hash (SHA-256)</p>
+              <p class="mt-1 select-all break-all font-mono text-xs">{{ contentHash() }}</p>
+              <p class="mt-1.5 text-xs text-slate-600 dark:text-slate-400">
+                Students get exactly the questions you approve here. Editing anything afterwards changes this hash.
+              </p>
+            </div>
+
+            <div class="space-y-3">
+              <label class="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox"
                   [checked]="acknowledgedAnswerKey()"
                   (change)="acknowledgedAnswerKey.set(!acknowledgedAnswerKey())"
-                  class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800"
+                  class="mt-0.5 h-4 w-4 cursor-pointer accent-indigo-700"
                 />
-                <span class="text-slate-700 dark:text-slate-300">
-                  I have verified that correct answer keys and explanations are verified and will remain partitioned server-side until the scheduled end time.
+                <span>
+                  I checked the answer key and explanations. They stay on the server until the exam ends.
                 </span>
               </label>
 
-              <label class="flex items-start gap-2.5 cursor-pointer">
+              <label class="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox"
                   [checked]="acknowledgedBatchLock()"
                   (change)="acknowledgedBatchLock.set(!acknowledgedBatchLock())"
-                  class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800"
+                  class="mt-0.5 h-4 w-4 cursor-pointer accent-indigo-700"
                 />
-                <span class="text-slate-700 dark:text-slate-300">
-                  Time-lock schedule is finalized. Students cannot submit past the 45-minute epoch cutoff.
+                <span>
+                  The schedule is final. Students cannot submit after the 45-minute cutoff.
                 </span>
               </label>
             </div>
           </div>
 
-          <!-- Footer Buttons -->
-          <div class="mt-6 flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div class="mt-6 flex items-center justify-end gap-2.5 border-t border-slate-200 pt-4 dark:border-slate-800">
             <app-button
               variant="secondary"
               label="Cancel"
@@ -111,8 +89,7 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
             />
             <app-button
               variant="accent"
-              icon="🔒"
-              label="Sign & Publish Exam"
+              label="Publish exam"
               [disabled]="!acknowledgedAnswerKey() || !acknowledgedBatchLock()"
               (clicked)="confirmPublish.emit()"
             />
