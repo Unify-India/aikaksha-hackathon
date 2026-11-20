@@ -85,7 +85,7 @@ flowchart TD
 
 ## 👥 Team & Ownership (5 people)
 
-The hour-by-hour schedule, dependency deadlines, and each person's copy-paste AI agent brief are in **`five-person-plan.md`**. This file holds the technical detail. Each component below is tagged with its owner.
+The hour-by-hour schedule, dependency deadlines, and each person's copy-paste AI agent brief are in **`docs/FIVE_PERSON_PLAN.md`**. This file holds the technical detail. Each component below is tagged with its owner.
 
 | Member | Role | Components owned in this file |
 |---|---|---|
@@ -95,7 +95,7 @@ The hour-by-hour schedule, dependency deadlines, and each person's copy-paste AI
 | **Paritosh** | Frontend & Signals Lead (Workflow A UI) | 5 (environments, client, orchestrator, routes, shell), 6 (Voice Copilot, Exam Studio, Review Gate) |
 | **Hitesh** | DevOps, Data & QA Lead | 1 (`firebase.service.ts`, `firestore.rules`, seed), 7 (Docker, Cloud Run, Hosting), tests, smoke script, submission check, AXE audit |
 
-**Integration checkpoints** (details and fallbacks in `five-person-plan.md`)
+**Integration checkpoints** (details and fallbacks in `docs/FIVE_PERSON_PLAN.md`)
 - **0:20** — Contracts committed (everyone).
 - **0:45** — `db` exported + Firestore seeded (Hitesh).
 - **1:00** — `generateJson` helper (Sakshi) and server skeleton with auth (Sandeep).
