@@ -56,6 +56,7 @@ export interface SubjectiveEvaluationResult {
  */
 export const evaluateSubjectiveAnswer = functions
   .region(DEPLOYMENT_REGION)
+  .runWith({ timeoutSeconds: 300, memory: '1GB', secrets: ['GEMINI_API_KEY'] })
   .https.onCall(async (data: EvaluateSubjectiveRequest, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
