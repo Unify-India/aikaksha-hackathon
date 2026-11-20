@@ -1,4 +1,3 @@
-import { Service } from '@angular/core';
 import {
   Box2d,
   IGradingJob,
@@ -15,7 +14,7 @@ import type {
   IUploadSheet,
   RunEventHandler,
 } from './evaluation-backend';
-import { MOCK_MATHS_SCHEME, MOCK_WORKFLOW_A_SCHEME } from './mock-fixtures';
+import { SAMPLE_MATHS_SCHEME, SAMPLE_WORKFLOW_A_SCHEME } from './evaluation-fixtures.testing';
 import { pagesSummary } from './pages-summary';
 import { summariseSheet } from './sheet-summary';
 
@@ -35,12 +34,11 @@ function seededRandom(seedHex: string): () => number {
 }
 
 /**
- * Pretends to be the grading server: runs the tool chain with realistic delays and
- * produces plausible (but fake) marks and red-pen box positions.
+ * TEST-ONLY fake grading backend for specs: runs the tool chain with short delays and
+ * deterministic fake marks. Never provided in the app — specs inject it via EVALUATION_BACKEND.
  */
-@Service()
-export class MockEvaluationBackend implements EvaluationBackend {
-  private schemes: IMarkingScheme[] = [MOCK_MATHS_SCHEME, MOCK_WORKFLOW_A_SCHEME];
+export class FakeEvaluationBackend implements EvaluationBackend {
+  private schemes: IMarkingScheme[] = [SAMPLE_MATHS_SCHEME, SAMPLE_WORKFLOW_A_SCHEME];
   private sheets = new Map<string, ISheetEvaluation>();
   private nextId = 1;
 
@@ -55,7 +53,7 @@ export class MockEvaluationBackend implements EvaluationBackend {
     const checksum = await sha256Hex(questionPaper);
     await wait(2500);
     const draft: IMarkingScheme = {
-      ...structuredClone(MOCK_MATHS_SCHEME),
+      ...structuredClone(SAMPLE_MATHS_SCHEME),
       id: `scheme-draft-${this.nextId++}`,
       title: `Draft scheme — ${questionPaper.name.replace(/\.[^.]+$/, '')}`,
       status: 'draft',

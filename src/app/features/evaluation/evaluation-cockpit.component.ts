@@ -181,10 +181,8 @@ export class EvaluationCockpitComponent {
     switch (this.store.engine) {
       case 'server':
         return { text: 'Engine: grading server', css: 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200' };
-      case 'gemini':
-        return { text: 'Engine: Gemini from this browser (local testing only)', css: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200' };
       default:
-        return { text: 'Engine: mock grades (testing)', css: 'border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' };
+        return { text: 'Engine: Gemini from this browser (local testing only)', css: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200' };
     }
   });
 

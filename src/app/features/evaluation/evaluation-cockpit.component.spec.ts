@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { EVALUATION_ENGINE } from './data/evaluation-backend';
+import { EVALUATION_BACKEND } from './data/evaluation-backend';
+import { FakeEvaluationBackend } from './data/fake-evaluation-backend.testing';
 import { EvaluationStore } from './data/evaluation.store';
 import { PdfDocumentService } from './data/pdf-document.service';
 import { fakePdfService } from './data/fake-pdf.testing';
@@ -9,10 +10,10 @@ const pdf = (name: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 
 
 describe('EvaluationCockpitComponent', () => {
   beforeEach(() => {
-    // Never call real Gemini from tests, even if a key is set in environment.ts.
+    // Never call real Gemini or a server from tests: use the test-only fake backend.
     TestBed.configureTestingModule({
       providers: [
-        { provide: EVALUATION_ENGINE, useValue: 'mock' },
+        { provide: EVALUATION_BACKEND, useClass: FakeEvaluationBackend },
         { provide: PdfDocumentService, useValue: fakePdfService },
       ],
     });

@@ -13,7 +13,6 @@ import {
   gradeSheetPrompt,
 } from './gemini-prompts';
 import { normaliseDraftScheme, normaliseGrading } from './grading-normaliser';
-import { MOCK_MATHS_SCHEME, MOCK_WORKFLOW_A_SCHEME } from './mock-fixtures';
 import { pagesSummary } from './pages-summary';
 import { REVIEW_CONFIDENCE_THRESHOLD, summariseSheet } from './sheet-summary';
 
@@ -27,7 +26,7 @@ const GRADING_THINKING_BUDGET = 2048;
 @Service()
 export class GeminiEvaluationBackend implements EvaluationBackend {
   private readonly gemini = inject(GeminiService);
-  private schemes: IMarkingScheme[] = [MOCK_MATHS_SCHEME, MOCK_WORKFLOW_A_SCHEME];
+  private schemes: IMarkingScheme[] = [];
   private sheets = new Map<string, ISheetEvaluation>();
   private nextId = 1;
 

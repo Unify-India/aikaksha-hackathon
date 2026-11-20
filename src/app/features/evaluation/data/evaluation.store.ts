@@ -57,7 +57,7 @@ export function validateSheetFile(file: File): string | null {
 @Service()
 export class EvaluationStore {
   private readonly backend = inject(EVALUATION_BACKEND);
-  /** Which engine grades: 'server', 'gemini' (browser, local only) or 'mock'. */
+  /** Which engine grades: 'server', or 'gemini' (browser, local only). */
   readonly engine = inject(EVALUATION_ENGINE);
   private readonly pdf = inject(PdfDocumentService);
   private activityId = 0;

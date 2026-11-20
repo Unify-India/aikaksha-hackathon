@@ -1,11 +1,11 @@
 import { IMarkingScheme } from '../models/evaluation.models';
 
 /**
- * Mock marking schemes for offline/demo mode.
+ * TEST-ONLY sample marking schemes (used by specs; never wired into the app).
  * The maths scheme is a subset of a real Class 12 test paper (questions paraphrased, no branding);
  * every answer below has been worked out and checked.
  */
-export const MOCK_MATHS_SCHEME: IMarkingScheme = {
+export const SAMPLE_MATHS_SCHEME: IMarkingScheme = {
   id: 'scheme-class12-maths-sample',
   title: 'Class 12 Mathematics Test (sample subset)',
   subject: 'Mathematics',
@@ -156,7 +156,7 @@ export const MOCK_MATHS_SCHEME: IMarkingScheme = {
 };
 
 /** A scheme reused from a Workflow A exam (answer key already stored server-side). */
-export const MOCK_WORKFLOW_A_SCHEME: IMarkingScheme = {
+export const SAMPLE_WORKFLOW_A_SCHEME: IMarkingScheme = {
   id: 'scheme-exam-neet-electrostatics',
   title: 'NEET Practice — Electrostatics (from Voice Copilot)',
   subject: 'Physics',

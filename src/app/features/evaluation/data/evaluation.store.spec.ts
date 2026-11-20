@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { EVALUATION_ENGINE } from './evaluation-backend';
+import { EVALUATION_BACKEND } from './evaluation-backend';
+import { FakeEvaluationBackend } from './fake-evaluation-backend.testing';
 import { PdfDocumentService } from './pdf-document.service';
 import { fakePdfService } from './fake-pdf.testing';
 import {
@@ -40,10 +41,10 @@ describe('EvaluationStore (mock backend)', () => {
   let store: EvaluationStore;
 
   beforeEach(() => {
-    // Never call real Gemini from tests, even if a key is set in environment.ts.
+    // Never call real Gemini or a server from tests: use the test-only fake backend.
     TestBed.configureTestingModule({
       providers: [
-        { provide: EVALUATION_ENGINE, useValue: 'mock' },
+        { provide: EVALUATION_BACKEND, useClass: FakeEvaluationBackend },
         { provide: PdfDocumentService, useValue: fakePdfService },
       ],
     });

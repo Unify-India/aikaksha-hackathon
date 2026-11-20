@@ -1,9 +1,9 @@
 import { normaliseDraftScheme, normaliseGrading, normaliseOption } from './grading-normaliser';
-import { MOCK_MATHS_SCHEME } from './mock-fixtures';
+import { SAMPLE_MATHS_SCHEME } from './evaluation-fixtures.testing';
 import { preprocessJsonString, parseJsonResponse } from '../../../core/services/ai/gemini.service';
 
 describe('normaliseGrading', () => {
-  const scheme = MOCK_MATHS_SCHEME;
+  const scheme = SAMPLE_MATHS_SCHEME;
 
   it('scores MCQs against the key itself, ignoring what the model claims', () => {
     const { questions } = normaliseGrading(
