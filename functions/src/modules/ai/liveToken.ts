@@ -6,8 +6,8 @@ import { GoogleGenAI } from '@google/genai';
  * Short-lived Gemini Live token for the Voice Copilot.
  *
  * The browser cannot hold GEMINI_API_KEY, and Live is a WebSocket the relay cannot forward. So the
- * server mints a single-use ephemeral token (auth_tokens/...) locked to an allowed Live model; the
- * browser opens the Live session with it. Mounted behind authMiddleware (demo token).
+ * server mints a single-use ephemeral token (auth_tokens/...); the browser opens the Live session
+ * with it and sends its own system instruction and tools. Mounted behind authMiddleware (demo token).
  */
 
 /** Live models the Voice Copilot may open. */
@@ -48,7 +48,9 @@ export async function liveToken(req: Request, res: Response): Promise<void> {
         uses: 1,
         expireTime: new Date(now + LIVE_SESSION_LIMIT_MS).toISOString(),
         newSessionExpireTime: new Date(now + LIVE_NEW_SESSION_WINDOW_MS).toISOString(),
-        liveConnectConstraints: { model },
+        // No liveConnectConstraints: a constrained token makes Gemini ignore the client's session
+        // config (system instruction + tools), so the copilot could not create exams. The token is
+        // still single-use and must start a session within 60 s.
         httpOptions: { apiVersion: 'v1alpha' },
       },
     });
