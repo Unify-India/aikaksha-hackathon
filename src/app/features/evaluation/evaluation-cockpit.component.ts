@@ -396,6 +396,7 @@ interface IStep {
             <div class="min-w-0 lg:col-span-6">
               <app-answer-sheet-viewer
                 [file]="store.activeFile()"
+                [fileLoading]="store.activeFileLoading()"
                 [sheet]="store.activeSheet()"
                 [scheme]="store.jobScheme()"
                 [selectedQuestionId]="selectedQuestionId()"
