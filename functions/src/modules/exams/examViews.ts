@@ -116,6 +116,31 @@ export function toQuestionView(raw: unknown, index: number, keys: Data): IExamQu
   return view;
 }
 
+/**
+ * Draft exams keep their questions in master_exams/{examId}/draft_questions (with answers on each
+ * question) until they are published to exam_questions + answerKey. Turns those draft docs into the
+ * same inputs toExamDetail expects, in natural question order (q_2 before q_10).
+ */
+export function draftQuestionsAsDetailInputs(drafts: Data[]): { questionsDoc: Data; answerKeyDoc: Data } {
+  const ordered = [...drafts].sort((a, b) => {
+    const ao = Number(a['order'] ?? a['index']);
+    const bo = Number(b['order'] ?? b['index']);
+    if (Number.isFinite(ao) && Number.isFinite(bo) && ao !== bo) return ao - bo;
+    return str(a['id']).localeCompare(str(b['id']), undefined, { numeric: true });
+  });
+  const keys: Data = {};
+  for (const q of ordered) {
+    const id = str(q['id']);
+    if (!id) continue;
+    const key: Data = {};
+    if (q['correctOptionId'] !== undefined) key['correctOptionId'] = q['correctOptionId'];
+    if (q['answer'] !== undefined) key['answer'] = q['answer'];
+    if (q['explanation'] !== undefined) key['explanation'] = q['explanation'];
+    keys[id] = key;
+  }
+  return { questionsDoc: { questions: ordered }, answerKeyDoc: { keys } };
+}
+
 export function toExamDetail(examId: string, exam: Data, questionsDoc: Data, answerKeyDoc: Data): IExamDetailView {
   const questions = Array.isArray(questionsDoc['questions']) ? (questionsDoc['questions'] as unknown[]) : [];
   const keys = obj(answerKeyDoc['keys']);
