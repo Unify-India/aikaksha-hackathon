@@ -5,6 +5,7 @@ import { ChatThreadComponent } from './components/chat-thread.component';
 import { ExamParamsCardComponent } from './components/exam-params-card.component';
 import { SuggestionChipsComponent } from './components/suggestion-chips.component';
 import { VoiceComposerComponent } from './components/voice-composer.component';
+import { GeminiKeyPickerComponent } from './components/gemini-key-picker.component';
 import { ExamIntakeStore } from './data/exam-intake.store';
 import { REQUIRED_FIELDS } from './data/exam-params.rules';
 import { TEACHER_BATCHES, TEACHER_NAME } from './data/teacher-context';
@@ -15,7 +16,7 @@ import { TEACHER_BATCHES, TEACHER_NAME } from './data/teacher-context';
  */
 @Component({
   selector: 'app-voice-copilot',
-  imports: [NgTemplateOutlet, ChatSidebarComponent, ChatThreadComponent, ExamParamsCardComponent, SuggestionChipsComponent, VoiceComposerComponent],
+  imports: [NgTemplateOutlet, ChatSidebarComponent, ChatThreadComponent, ExamParamsCardComponent, SuggestionChipsComponent, VoiceComposerComponent, GeminiKeyPickerComponent],
   template: `
     <div
       class="relative flex h-[calc(100dvh-10.5rem)] min-h-[34rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
@@ -93,6 +94,7 @@ import { TEACHER_BATCHES, TEACHER_NAME } from './data/teacher-context';
                 (send)="store.sendText($event)"
                 (toggleMic)="store.toggleMic()"
               />
+              <app-gemini-key-picker class="mt-2" [keyId]="store.questionKeyId()" (keyIdChange)="store.selectQuestionKey($event)" />
               <p class="mt-3 text-center text-sm text-slate-600 dark:text-slate-400">
                 Tap the mic and speak in English, Hindi or Hinglish, or type. Try one of these:
               </p>
@@ -113,6 +115,7 @@ import { TEACHER_BATCHES, TEACHER_NAME } from './data/teacher-context';
                   [readonly]="!!store.viewing()"
                   (confirm)="store.confirmFromButton()"
                   (retry)="store.createExam()"
+                  (retryWithKey)="store.createExam($event)"
                 />
               </li>
             }
@@ -121,6 +124,9 @@ import { TEACHER_BATCHES, TEACHER_NAME } from './data/teacher-context';
           <div class="shrink-0 px-4 pb-4 pt-2">
             <div class="mx-auto max-w-3xl">
               <ng-container *ngTemplateOutlet="alerts" />
+              @if (!store.viewing()) {
+                <app-gemini-key-picker class="mb-2" [keyId]="store.questionKeyId()" (keyIdChange)="store.selectQuestionKey($event)" />
+              }
               @if (askingBatch()) {
                 <div class="mb-3 flex flex-wrap items-center gap-2" role="group" aria-labelledby="batch-pick-label">
                   <span id="batch-pick-label" class="text-sm text-slate-600 dark:text-slate-400">Pick a batch:</span>

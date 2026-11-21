@@ -38,6 +38,8 @@ export interface GeminiJsonRequest {
   thinkingBudget?: number;
   model?: string;
   signal?: AbortSignal;
+  /** Call Gemini directly with this key instead of the relay / configured key. */
+  apiKey?: string;
 }
 
 interface GeminiUploadedFile {
@@ -91,7 +93,15 @@ export class GeminiService {
   }
 
   /** One generateContent call — via the backend relay when configured, otherwise straight to Gemini. */
-  private generateContent(model: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  private generateContent(model: string, body: unknown, signal?: AbortSignal, apiKey?: string): Promise<Response> {
+    if (apiKey) {
+      return this.fetchWithRetry(`${this.config.endpoint}/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(body),
+        signal,
+      });
+    }
     if (this.relay) {
       return this.fetchWithRetry(this.relay.url, {
         method: 'POST',
@@ -110,7 +120,7 @@ export class GeminiService {
 
   /** Asks Gemini for a JSON answer and parses it. Retries on 429/5xx with backoff. */
   async generateJson<T>(request: GeminiJsonRequest): Promise<T> {
-    this.assertConfigured();
+    if (!request.apiKey) this.assertConfigured();
     const model = request.model ?? this.model;
     const body = {
       contents: [{ role: 'user', parts: request.parts }],
@@ -123,7 +133,7 @@ export class GeminiService {
       },
     };
 
-    const response = await this.generateContent(model, body, request.signal);
+    const response = await this.generateContent(model, body, request.signal, request.apiKey);
     const json = (await response.json()) as GeminiGenerateResponse;
 
     const candidate = json.candidates?.[0];

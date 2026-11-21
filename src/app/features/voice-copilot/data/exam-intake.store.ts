@@ -1,4 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
+import { GeminiError } from '../../../core/services/ai/gemini.service';
+import { QUESTION_GEN_KEYS } from './gemini-keys';
 import { FunctionCall, FunctionResponse, FunctionResponseScheduling } from '@google/genai';
 import { ExamApiError, ExamApiService } from '../../../core/services/exam-api.service';
 import { ICreateCompleteExamResponse, IExamIntakeResult, IQuestionItemPayload } from '../../../shared/models/exam-creation.model';
@@ -18,6 +20,21 @@ export interface ICreationState {
   progress?: IGenerationProgress;
   exam?: ICreateCompleteExamResponse;
   error?: string;
+  /** Question generation hit a Gemini quota error (429): the card offers other keys. */
+  quotaExceeded?: boolean;
+  /** Label of the key used for the last attempt, when the teacher picked one. */
+  keyLabel?: string;
+}
+
+const QUESTION_KEY_STORAGE = 'aiKaksha.questionKeyId';
+
+function readStoredKeyId(): string {
+  try {
+    const id = localStorage.getItem(QUESTION_KEY_STORAGE) ?? '';
+    return QUESTION_GEN_KEYS.some((k) => k.id === id) ? id : '';
+  } catch {
+    return '';
+  }
 }
 
 const newId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -48,6 +65,8 @@ export class ExamIntakeStore {
   /** A past session opened read-only from the sidebar. */
   readonly viewing = signal<IChatSession | null>(null);
   readonly creation = signal<ICreationState>({ phase: 'idle' });
+  /** Gemini key for question generation ('' = server key via the relay); remembered in this browser. */
+  readonly questionKeyId = signal(readStoredKeyId());
 
   readonly micOn = this.audio.micOn;
   readonly agentSpeaking = this.audio.playing;
@@ -148,7 +167,19 @@ export class ExamIntakeStore {
   }
 
   /** Generate the questions (once) and create the exam on the server. Also the Retry action. */
-  async createExam(): Promise<void> {
+  /** Picks the key for question generation (key picker / quota buttons). */
+  selectQuestionKey(keyId: string): void {
+    this.questionKeyId.set(keyId);
+    try {
+      localStorage.setItem(QUESTION_KEY_STORAGE, keyId);
+    } catch {
+      // Storage blocked: the choice lasts for this page only.
+    }
+  }
+
+  /** `keyId` (from the quota buttons) also becomes the selected key. */
+  async createExam(keyId?: string): Promise<void> {
+    if (keyId !== undefined) this.selectQuestionKey(keyId);
     const intake = this.result();
     const phase = this.creation().phase;
     if (!intake || phase === 'generating' || phase === 'saving' || phase === 'created') return;
@@ -161,13 +192,26 @@ export class ExamIntakeStore {
         this.creation.set({ phase: 'failed', error: 'Gemini is not configured, so questions cannot be generated (set gemini.apiKey).' });
         return;
       }
-      this.creation.set({ phase: 'generating', progress: { done: 0, total: intake.examParams.targetQuestions } });
+      const key = QUESTION_GEN_KEYS.find((k) => k.id === this.questionKeyId());
+      const keyLabel = key?.label;
+      this.creation.set({ phase: 'generating', keyLabel, progress: { done: 0, total: intake.examParams.targetQuestions } });
       try {
-        const questions = await this.generator.generate(intake, (progress) => stillHere() && this.creation.set({ phase: 'generating', progress }));
+        const questions = await this.generator.generate(
+          intake,
+          (progress) => stillHere() && this.creation.set({ phase: 'generating', keyLabel, progress }),
+          key?.apiKey,
+        );
         if (!stillHere()) return;
         this.generatedQuestions = questions;
       } catch (err) {
-        if (stillHere()) this.creation.set({ phase: 'failed', error: `Question generation failed: ${err instanceof Error ? err.message : String(err)}` });
+        if (stillHere()) {
+          this.creation.set({
+            phase: 'failed',
+            keyLabel,
+            quotaExceeded: err instanceof GeminiError && err.status === 429,
+            error: `Question generation failed${keyLabel ? ` (${keyLabel}'s key)` : ''}: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
         return;
       }
     }

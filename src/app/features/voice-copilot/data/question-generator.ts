@@ -45,7 +45,12 @@ export class QuestionGenerator {
   }
 
   /** All batches run in parallel; `onProgress` fires as each batch lands. */
-  async generate(intake: IExamIntakeResult, onProgress: (p: IGenerationProgress) => void = () => {}): Promise<IQuestionItemPayload[]> {
+  /** `apiKey` (optional) calls Gemini directly with that key, e.g. after the teacher switches keys on a 429. */
+  async generate(
+    intake: IExamIntakeResult,
+    onProgress: (p: IGenerationProgress) => void = () => {},
+    apiKey?: string,
+  ): Promise<IQuestionItemPayload[]> {
     const total = intake.examParams.targetQuestions;
     const sizes = Array.from({ length: Math.ceil(total / BATCH_SIZE) }, (_, i) => Math.min(BATCH_SIZE, total - i * BATCH_SIZE));
     let done = 0;
@@ -53,7 +58,7 @@ export class QuestionGenerator {
 
     const batches = await Promise.all(
       sizes.map(async (count, index) => {
-        const questions = await this.generateBatch(intake, count, index, sizes.length);
+        const questions = await this.generateBatch(intake, count, index, sizes.length, apiKey);
         done += questions.length;
         onProgress({ done, total });
         return questions;
@@ -62,7 +67,13 @@ export class QuestionGenerator {
     return batches.flat();
   }
 
-  private async generateBatch(intake: IExamIntakeResult, count: number, index: number, batchCount: number): Promise<IQuestionItemPayload[]> {
+  private async generateBatch(
+    intake: IExamIntakeResult,
+    count: number,
+    index: number,
+    batchCount: number,
+    apiKey?: string,
+  ): Promise<IQuestionItemPayload[]> {
     let lastProblem = '';
     for (let attempt = 0; attempt < 2; attempt++) {
       const raw = await this.gemini.generateJson<{ questions?: IGeneratedQuestion[] }>({
@@ -71,6 +82,7 @@ export class QuestionGenerator {
         responseSchema: QUESTION_RESPONSE_SCHEMA,
         // The skill's setting: suppresses mathematical hallucinations while keeping distractors varied.
         temperature: 0.35,
+        apiKey,
       });
       const results = (raw.questions ?? []).map((q) => toPayload(q, intake));
       const valid = results.filter((r): r is IQuestionItemPayload => typeof r !== 'string');

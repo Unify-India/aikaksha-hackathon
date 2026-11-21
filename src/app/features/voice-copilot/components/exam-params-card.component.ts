@@ -1,4 +1,5 @@
 import { Component, computed, input, output } from '@angular/core';
+import { QUESTION_GEN_KEYS } from '../data/gemini-keys';
 import { RouterLink } from '@angular/router';
 import { IExamIntakeResult } from '../../../shared/models/exam-creation.model';
 import { ICreationState } from '../data/exam-intake.store';
@@ -94,6 +95,25 @@ interface IRow {
                     Retry
                   </button>
                 }
+                @if (!readonly() && creation().quotaExceeded) {
+                  <div class="mt-4 border-t border-rose-200 pt-3 dark:border-rose-800">
+                    <p id="switch-key-label" class="font-semibold">Gemini quota reached. Generate the questions with another key (you can also change it any time under the chat box):</p>
+                    <div class="mt-2 flex flex-wrap gap-2" role="group" aria-labelledby="switch-key-label">
+                      @for (key of keys; track key.id) {
+                        <button
+                          type="button"
+                          (click)="retryWithKey.emit(key.id)"
+                          class="rounded-lg border border-rose-700 bg-white px-3 py-1.5 text-sm font-semibold text-rose-800 transition hover:bg-rose-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 dark:border-rose-500 dark:bg-slate-900 dark:text-rose-200 dark:hover:bg-rose-950"
+                        >
+                          Use {{ key.label }}'s key
+                          @if (creation().keyLabel === key.label) {
+                            <span class="font-normal">(just tried)</span>
+                          }
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
               </div>
             }
           }
@@ -120,6 +140,9 @@ export class ExamParamsCardComponent {
   readonly creation = input<ICreationState>({ phase: 'idle' });
   readonly confirm = output<void>();
   readonly retry = output<void>();
+  /** Retry question generation with the key of this id (from QUESTION_GEN_KEYS). */
+  readonly retryWithKey = output<string>();
+  protected readonly keys = QUESTION_GEN_KEYS;
 
   protected readonly progressPercent = computed(() => {
     const p = this.creation().progress;

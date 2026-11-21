@@ -15,6 +15,11 @@ export interface GeminiEnvironmentConfig {
   endpoint: string;
   /** Gemini Live (bidiGenerateContent) model with native audio, used by the Voice Copilot. */
   liveModel: string;
+  /**
+   * Optional keys the teacher can pick for Voice Copilot question generation (key picker and quota
+   * buttons). Set only in local, uncommitted environment files; never commit key values.
+   */
+  questionKeys?: { id: string; label: string; apiKey: string }[];
 }
 
 export interface McpEnvironmentConfig {
