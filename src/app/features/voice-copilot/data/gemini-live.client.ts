@@ -40,25 +40,39 @@ export class GeminiLiveClient {
 
   isConfigured(): boolean {
     if (!environment.gemini.liveModel) return false;
-    if (this.tokenEndpoint) return true;
-    const key = environment.gemini.apiKey?.trim();
-    return !!key && key !== PLACEHOLDER_KEY;
+    return !!this.tokenEndpoint || this.hasFallbackKey();
   }
 
-  /** Key for the Live session: a server-minted ephemeral token (v1alpha), or the local key (v1beta). */
+  /** A real key in environment.gemini.apiKey (not the placeholder). */
+  private hasFallbackKey(): boolean {
+    const key = environment.gemini.apiKey?.trim();
+    return !!key && key !== PLACEHOLDER_KEY && !key.startsWith('YOUR');
+  }
+
+  /**
+   * Key for the Live session: a server-minted ephemeral token (v1alpha). If the server cannot give
+   * one, falls back to environment.gemini.apiKey (v1beta) when a real key is set there.
+   */
   private async credentials(): Promise<{ apiKey: string; apiVersion: string }> {
-    if (!this.tokenEndpoint) return { apiKey: environment.gemini.apiKey, apiVersion: LIVE_API_VERSION };
-    const response = await fetch(this.tokenEndpoint.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.tokenEndpoint.demoToken}` },
-      body: JSON.stringify({ model: environment.gemini.liveModel }),
-    });
-    const json = (await response.json().catch(() => ({}))) as { token?: string; error?: { message?: string } };
-    if (!response.ok || !json.token) {
-      throw new Error(json.error?.message ?? `Could not get a voice session token (HTTP ${response.status}).`);
+    const fallback = { apiKey: environment.gemini.apiKey, apiVersion: LIVE_API_VERSION };
+    if (!this.tokenEndpoint) return fallback;
+    try {
+      const response = await fetch(this.tokenEndpoint.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.tokenEndpoint.demoToken}` },
+        body: JSON.stringify({ model: environment.gemini.liveModel }),
+      });
+      const json = (await response.json().catch(() => ({}))) as { token?: string; error?: { message?: string } };
+      if (!response.ok || !json.token) {
+        throw new Error(json.error?.message ?? `Could not get a voice session token (HTTP ${response.status}).`);
+      }
+      // Ephemeral tokens only work on v1alpha (the SDK then uses BidiGenerateContentConstrained).
+      return { apiKey: json.token, apiVersion: 'v1alpha' };
+    } catch (e) {
+      if (!this.hasFallbackKey()) throw e;
+      console.warn('[GeminiLive] server token unavailable; using the fallback key.', e);
+      return fallback;
     }
-    // Ephemeral tokens only work on v1alpha (the SDK then uses BidiGenerateContentConstrained).
-    return { apiKey: json.token, apiVersion: 'v1alpha' };
   }
 
   get isOpen(): boolean {
