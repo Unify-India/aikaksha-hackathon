@@ -16,7 +16,7 @@ export const environment: AppEnvironment = {
   },
   gemini: {
     apiKey: 'YOUR_PRODUCTION_GEMINI_API_KEY',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.6-flash',
     endpoint: 'https://generativelanguage.googleapis.com/v1beta',
     liveModel: 'gemini-3.8-live',
   },

@@ -24,6 +24,7 @@ import {
 import { understandTeacherRequest } from './modules/workflows/understand.js';
 import { getTeacherDraft } from './modules/exams/teacherDraft.js';
 import { handleMcpRequest, mcpMethodNotAllowed } from './modules/mcp/mcpServer.js';
+import { geminiRelay } from './modules/ai/geminiRelay.js';
 
 // Auto-seed Firestore collections on cold start
 seedFirestoreDatabase().catch((err) => {
@@ -34,6 +35,11 @@ seedFirestoreDatabase().catch((err) => {
 export const apiApp = express();
 
 apiApp.use(cors({ origin: true }));
+
+// Gemini relay for the evaluation screen: page images make bodies large (up to ~9.5 MB), so it gets its own
+// JSON parser and is registered before the default 100 kB parser.
+apiApp.post('/api/ai/generate', express.json({ limit: '10mb' }), authMiddleware, geminiRelay);
+
 apiApp.use(express.json());
 
 // Health check endpoint

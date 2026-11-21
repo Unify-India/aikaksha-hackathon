@@ -47,7 +47,7 @@ export class PdfDocumentService {
    * (Firebase HTTP functions reject requests above ~10 MB). Starts sharp and steps the
    * size/quality down only if the paper is too big.
    */
-  async toJpegPages(file: Blob, maxTotalBytes = 8 * 1024 * 1024): Promise<Blob[]> {
+  async toJpegPages(file: Blob, maxTotalBytes = 6 * 1024 * 1024): Promise<Blob[]> {
     const attempts = [
       { width: 1600, quality: 0.82 },
       { width: 1400, quality: 0.72 },

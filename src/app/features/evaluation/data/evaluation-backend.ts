@@ -70,7 +70,10 @@ export type EvaluationEngine = 'server' | 'gemini';
 export const EVALUATION_ENGINE = new InjectionToken<EvaluationEngine>('EVALUATION_ENGINE', {
   providedIn: 'root',
   factory: () => {
-    return environment.mcp.mode === 'live' ? 'server' : 'gemini';
+    // The grading-server route (HttpEvaluationBackend) does not exist yet, so mcp.mode no longer picks it.
+    // Gemini calls go through the backend relay (key stays on the server) whenever examApi is configured.
+    void environment;
+    return 'gemini';
   },
 });
 

@@ -9,6 +9,7 @@ import { SchemePickerComponent } from './components/scheme-picker/scheme-picker.
 import { SchemeReviewComponent } from './components/scheme-review/scheme-review.component';
 import { SheetUploadComponent } from './components/sheet-upload/sheet-upload.component';
 import { EvaluationStore } from './data/evaluation.store';
+import { GeminiService } from '../../core/services/ai/gemini.service';
 
 type StepState = 'done' | 'current' | 'locked' | 'upcoming';
 
@@ -45,7 +46,7 @@ interface IStep {
           aria-hidden="true"
         ></div>
 
-        <div class="relative flex flex-wrap items-end justify-between gap-4">
+        <div class="relative flex flex-wrap items-start justify-between gap-6">
           <div class="max-w-xl">
             <h1 id="eval-title" class="text-3xl md:text-4xl">Answer-sheet evaluation</h1>
             <p class="mt-3 max-w-lg text-sm leading-relaxed text-indigo-100">
@@ -64,7 +65,7 @@ interface IStep {
                 <!-- Headline KPI: cumulative AI grading accuracy across every saved record -->
                 <section
                   aria-labelledby="accuracy-label"
-                  class="w-full rounded-xl border border-white/25 bg-white/10 p-4 shadow-lg shadow-indigo-950/20 backdrop-blur-sm sm:w-80"
+                  class="w-full rounded-xl border border-white/25 bg-white/10 p-4 shadow-lg shadow-indigo-950/20 backdrop-blur-sm sm:w-[30rem] lg:w-[36rem]"
                 >
                   <p id="accuracy-label" class="text-xs font-semibold uppercase tracking-wider text-indigo-100">
                     AI grading accuracy · all papers
@@ -89,25 +90,28 @@ interface IStep {
                   >
                     <div class="h-full rounded-full transition-[width] duration-700" [class]="accuracyBarClass()" [style.width.%]="acc.percent"></div>
                   </div>
-                  <dl class="mt-3 grid grid-cols-3 gap-2 text-center">
-                    <div class="group relative rounded-md bg-white/10 px-1 py-1.5">
-                      <dt class="text-[10px] uppercase tracking-wide text-indigo-100">Teacher-checked <span tabindex="0" role="button" class="ml-0.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 align-middle text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-checked" aria-label="What is Teacher-checked?">i</span></dt>
-                      <dd class="font-mono text-sm font-semibold text-white">{{ acc.measured }}</dd>
-                      <span id="tip-checked" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 left-0 bottom-full mb-2">Answers a teacher confirmed or corrected: on approved sheets or in the Review Gate. These count as real right/wrong.</span>
+                  <dl class="mt-3 grid grid-cols-3 items-stretch gap-2 text-center">
+                    <div class="group relative flex flex-col items-center rounded-md bg-white/10 px-2 pb-2.5 pt-3">
+                      <span tabindex="0" role="button" class="absolute right-1.5 top-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-checked" aria-label="What is Teacher-evaluated (supervised learning)?">i</span>
+                      <dt class="flex min-h-10 items-center justify-center px-4 text-xs font-medium leading-snug text-indigo-100">Teacher-evaluated (supervised learning)</dt>
+                      <dd class="mt-1 font-mono text-xl font-semibold leading-none text-white">{{ acc.measured }}</dd>
+                      <span id="tip-checked" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 left-0 bottom-full mb-2">Answers a teacher confirmed or corrected (approved sheets or the Review Gate). They count as real right/wrong, and the corrections teach the AI how this teacher marks.</span>
                     </div>
-                    <div class="group relative rounded-md bg-white/10 px-1 py-1.5">
-                      <dt class="text-[10px] uppercase tracking-wide text-indigo-100">AI-estimated <span tabindex="0" role="button" class="ml-0.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 align-middle text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-estimated" aria-label="What is AI-estimated?">i</span></dt>
-                      <dd class="font-mono text-sm font-semibold text-white">{{ acc.estimated }}</dd>
-                      <span id="tip-estimated" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 left-1/2 -translate-x-1/2 bottom-full mb-2">Graded answers no teacher has checked yet. Each counts at Gemini's confidence (95% sure = 0.95 right).</span>
+                    <div class="group relative flex flex-col items-center rounded-md bg-white/10 px-2 pb-2.5 pt-3">
+                      <span tabindex="0" role="button" class="absolute right-1.5 top-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-estimated" aria-label="What is Independent AI evaluation?">i</span>
+                      <dt class="flex min-h-10 items-center justify-center px-4 text-xs font-medium leading-snug text-indigo-100">Independent AI evaluation</dt>
+                      <dd class="mt-1 font-mono text-xl font-semibold leading-none text-white">{{ acc.estimated }}</dd>
+                      <span id="tip-estimated" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 left-1/2 -translate-x-1/2 bottom-full mb-2">Answers graded by the AI alone, not yet checked by a teacher. Each counts at Gemini's own confidence (95% sure = 0.95 right).</span>
                     </div>
-                    <div class="group relative rounded-md bg-white/10 px-1 py-1.5">
+                    <div class="group relative flex flex-col items-center rounded-md bg-white/10 px-2 pb-2.5 pt-3">
                       <span id="tip-flagged" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 right-0 bottom-full mb-2">
                         Answers where Gemini was less than 90% sure, so they were sent to the Review Gate for a teacher.
                         "Still open" = not checked yet.
                       </span>
-                      <dt class="text-[10px] uppercase tracking-wide text-indigo-100">Flagged <span tabindex="0" role="button" class="ml-0.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 align-middle text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-flagged" aria-label="What is Flagged?">i</span></dt>
-                      <dd class="font-mono text-sm font-semibold text-white">{{ acc.flagged }}</dd>
-                      <dd class="text-[10px] text-indigo-100">{{ acc.lowConfidence }} still open</dd>
+                      <span tabindex="0" role="button" class="absolute right-1.5 top-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-flagged" aria-label="What is Recommended for teacher's review?">i</span>
+                      <dt class="flex min-h-10 items-center justify-center px-4 text-xs font-medium leading-snug text-indigo-100">Recommended for teacher's review</dt>
+                      <dd class="mt-1 font-mono text-xl font-semibold leading-none text-white">{{ acc.flagged }}</dd>
+                      <dd class="mt-1 text-[11px] text-indigo-100">{{ acc.lowConfidence }} still open</dd>
                     </div>
                   </dl>
                   <p class="mt-2 text-[11px] leading-snug text-indigo-100">
@@ -417,6 +421,7 @@ interface IStep {
 })
 export class EvaluationCockpitComponent {
   protected readonly store = inject(EvaluationStore);
+  protected readonly gemini = inject(GeminiService);
 
   /** The question highlighted in both the viewer and the marks panel; cleared when another sheet opens. */
   protected readonly selectedQuestionId = linkedSignal<string | null, string | null>({
@@ -517,10 +522,15 @@ export class EvaluationCockpitComponent {
           css: 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200',
         };
       default:
-        return {
-          text: 'Engine: Grading server',
-          css: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200',
-        };
+        return this.gemini.usesRelay
+          ? {
+              text: 'Engine: Gemini via AI Kaksha backend',
+              css: 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200',
+            }
+          : {
+              text: 'Engine: Gemini from this browser (local testing only)',
+              css: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200',
+            };
     }
   });
 
@@ -534,9 +544,9 @@ export class EvaluationCockpitComponent {
   protected readonly accuracyBreakdown = computed(() => {
     const a = this.store.accuracy();
     const parts: string[] = [];
-    if (a.measured) parts.push(`measured on ${a.measured} teacher-checked answers (${a.measuredPercent}%)`);
-    if (a.estimated) parts.push(`estimated on ${a.estimated} unchecked (${a.estimatedPercent}% AI confidence)`);
-    if (a.flagged) parts.push(`${a.flagged} flagged for review so far (${a.lowConfidence} still open)`);
+    if (a.measured) parts.push(`${a.measured} teacher-evaluated answers (${a.measuredPercent}% kept)`);
+    if (a.estimated) parts.push(`${a.estimated} independent AI evaluations (${a.estimatedPercent}% AI confidence)`);
+    if (a.flagged) parts.push(`${a.flagged} recommended for teacher's review (${a.lowConfidence} still open)`);
     return parts.join(' · ');
   });
 
