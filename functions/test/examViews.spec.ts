@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sortNewestFirst, toExamDetail, toExamSummary, toQuestionView } from '../src/modules/exams/examViews.js';
+import { draftQuestionsAsDetailInputs, sortNewestFirst, toExamDetail, toExamSummary, toQuestionView } from '../src/modules/exams/examViews.js';
 
 describe('exam views (teacher read model)', () => {
   it('maps master_exams fields, including server names like class and negativeMarks', () => {
@@ -45,5 +45,18 @@ describe('exam views (teacher read model)', () => {
     const q = toQuestionView({ id: 'm', en: { text: 't', options: [{ id: 'opt1', text: 'a' }] } }, 0, { m: { correctOptionId: 'opt9' } });
     expect(q.correctOptionId).toBeUndefined();
     expect(q.answer).toBe('opt9');
+  });
+
+  it('shows draft questions (with their answers) for exams that are not published yet', () => {
+    const drafts = [
+      { id: 'q_10', en: { text: 'Tenth', options: [{ id: 'opt1', text: 'a' }, { id: 'opt2', text: 'b' }] }, correctOptionId: 'opt2', explanation: { en: 'why' } },
+      { id: 'q_2', en: { text: 'Second', options: [{ id: 'opt1', text: 'a' }, { id: 'opt2', text: 'b' }] }, correctOptionId: 'opt1' },
+    ];
+    const { questionsDoc, answerKeyDoc } = draftQuestionsAsDetailInputs(drafts);
+    const detail = toExamDetail('e', {}, questionsDoc, answerKeyDoc);
+    expect(detail.questions.map((q) => [q.id, q.text, q.correctOptionId])).toEqual([
+      ['q_2', 'Second', 'opt1'],
+      ['q_10', 'Tenth', 'opt2'],
+    ]);
   });
 });

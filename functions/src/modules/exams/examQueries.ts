@@ -1,6 +1,13 @@
 import { db } from '../../config/firebase.js';
 import { FIRESTORE_COLLECTIONS } from '../../config/index.js';
-import { IExamDetailView, IExamSummaryView, sortNewestFirst, toExamDetail, toExamSummary } from './examViews.js';
+import {
+  IExamDetailView,
+  IExamSummaryView,
+  draftQuestionsAsDetailInputs,
+  sortNewestFirst,
+  toExamDetail,
+  toExamSummary,
+} from './examViews.js';
 
 export class ExamAccessError extends Error {
   constructor(
@@ -32,5 +39,14 @@ export async function getTeacherExam(teacherId: string, examId: string): Promise
   if (!examSnap.exists) throw new ExamAccessError('EXAM_NOT_FOUND', `Exam ${examId} not found`);
   const exam = examSnap.data() ?? {};
   if (exam['teacherId'] !== teacherId) throw new ExamAccessError('FORBIDDEN', `Exam ${examId} belongs to another teacher`);
-  return toExamDetail(examId, exam, questionsSnap.data() ?? {}, answerKeySnap.data() ?? {});
+  const questionsDoc = questionsSnap.data() ?? {};
+  const answerKeyDoc = answerKeySnap.data() ?? {};
+  const published = Array.isArray(questionsDoc['questions']) && questionsDoc['questions'].length > 0;
+  if (published) return toExamDetail(examId, exam, questionsDoc, answerKeyDoc);
+
+  // Not published yet: questions live in master_exams/{examId}/draft_questions (answers on each question).
+  const draftSnap = await examSnap.ref.collection('draft_questions').get();
+  const drafts = draftQuestionsAsDetailInputs(draftSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  const keys = { ...(drafts.answerKeyDoc['keys'] as Record<string, unknown>), ...((answerKeyDoc['keys'] as Record<string, unknown>) ?? {}) };
+  return toExamDetail(examId, exam, drafts.questionsDoc, { keys });
 }
