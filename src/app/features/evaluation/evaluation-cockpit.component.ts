@@ -9,6 +9,7 @@ import { SchemePickerComponent } from './components/scheme-picker/scheme-picker.
 import { SchemeReviewComponent } from './components/scheme-review/scheme-review.component';
 import { SheetUploadComponent } from './components/sheet-upload/sheet-upload.component';
 import { EvaluationStore } from './data/evaluation.store';
+import { GeminiService } from '../../core/services/ai/gemini.service';
 
 type StepState = 'done' | 'current' | 'locked' | 'upcoming';
 
@@ -417,6 +418,7 @@ interface IStep {
 })
 export class EvaluationCockpitComponent {
   protected readonly store = inject(EvaluationStore);
+  protected readonly gemini = inject(GeminiService);
 
   /** The question highlighted in both the viewer and the marks panel; cleared when another sheet opens. */
   protected readonly selectedQuestionId = linkedSignal<string | null, string | null>({
@@ -517,10 +519,15 @@ export class EvaluationCockpitComponent {
           css: 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200',
         };
       default:
-        return {
-          text: 'Engine: Grading server',
-          css: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200',
-        };
+        return this.gemini.usesRelay
+          ? {
+              text: 'Engine: Gemini via AI Kaksha backend',
+              css: 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200',
+            }
+          : {
+              text: 'Engine: Gemini from this browser (local testing only)',
+              css: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200',
+            };
     }
   });
 

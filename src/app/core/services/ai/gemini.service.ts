@@ -50,6 +50,8 @@ interface GeminiUploadedFile {
 /** Files above this size are sent through the Files API instead of inline (request limit is ~20 MB). */
 export const INLINE_LIMIT_BYTES = 15 * 1024 * 1024;
 const PLACEHOLDER_KEY = 'YOUR_GEMINI_API_KEY';
+/** Largest single file sent through the backend relay (base64 grows it by a third; the server caps bodies near 10 MB). */
+export const RELAY_INLINE_LIMIT_BYTES = 6.5 * 1024 * 1024;
 const MAX_ATTEMPTS = 3;
 /** A single Gemini call longer than this is treated as hung (grading a 7-page sheet takes ~45 s). */
 const REQUEST_TIMEOUT_MS = 3 * 60_000;
@@ -67,15 +69,43 @@ export class GeminiError extends Error {
 @Service()
 export class GeminiService {
   private readonly config = environment.gemini;
+  /** AI Kaksha backend relay (POST /api/ai/generate): the server adds the Gemini key, so the browser never holds one. */
+  private readonly relay = environment.examApi?.baseUrl
+    ? { url: `${environment.examApi.baseUrl}/api/ai/generate`, token: environment.examApi.demoToken }
+    : null;
 
-  /** True when a real API key is configured. */
+  /** True when Gemini can be called: through the backend relay, or with a key set locally. */
   isConfigured(): boolean {
+    if (this.relay) return true;
     const key = this.config.apiKey?.trim();
     return !!key && key !== PLACEHOLDER_KEY;
   }
 
+  /** Requests go through the backend relay (no key in the browser). */
+  get usesRelay(): boolean {
+    return !!this.relay;
+  }
+
   get model(): string {
-    return this.config.model || 'gemini-2.5-flash';
+    return this.config.model || 'gemini-3.6-flash';
+  }
+
+  /** One generateContent call — via the backend relay when configured, otherwise straight to Gemini. */
+  private generateContent(model: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+    if (this.relay) {
+      return this.fetchWithRetry(this.relay.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.relay.token}` },
+        body: JSON.stringify({ model, request: body }),
+        signal,
+      });
+    }
+    return this.fetchWithRetry(`${this.config.endpoint}/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.config.apiKey },
+      body: JSON.stringify(body),
+      signal,
+    });
   }
 
   /** Asks Gemini for a JSON answer and parses it. Retries on 429/5xx with backoff. */
@@ -93,12 +123,7 @@ export class GeminiService {
       },
     };
 
-    const response = await this.fetchWithRetry(`${this.config.endpoint}/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.config.apiKey },
-      body: JSON.stringify(body),
-      signal: request.signal,
-    });
+    const response = await this.generateContent(model, body, request.signal);
     const json = (await response.json()) as GeminiGenerateResponse;
 
     const candidate = json.candidates?.[0];
@@ -119,15 +144,11 @@ export class GeminiService {
    */
   async generateImage(request: { parts: GeminiPart[]; model: string; signal?: AbortSignal }): Promise<Blob> {
     this.assertConfigured();
-    const response = await this.fetchWithRetry(`${this.config.endpoint}/models/${request.model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.config.apiKey },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: request.parts }],
-        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-      }),
-      signal: request.signal,
-    });
+    const response = await this.generateContent(
+      request.model,
+      { contents: [{ role: 'user', parts: request.parts }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } },
+      request.signal,
+    );
     const json = (await response.json()) as GeminiGenerateResponse;
     const parts = json.candidates?.[0]?.content?.parts ?? [];
     const image = parts.find((p) => p.inlineData?.data && p.inlineData.mimeType?.startsWith('image/'))?.inlineData;
@@ -141,6 +162,10 @@ export class GeminiService {
   /** Turns a PDF/photo into a request part: inline when small, uploaded via the Files API when large. */
   async fileToPart(file: Blob, mimeType = file.type, displayName = 'upload', signal?: AbortSignal): Promise<GeminiPart> {
     this.assertConfigured();
+    if (this.relay && file.size > RELAY_INLINE_LIMIT_BYTES) {
+      // The relay forwards one JSON request (server limit ~10 MB); the Files API would need the key in the browser.
+      throw new GeminiError(`This file is too large for the server (max ${RELAY_INLINE_LIMIT_BYTES / (1024 * 1024)} MB).`);
+    }
     if (file.size <= INLINE_LIMIT_BYTES) {
       return { inlineData: { mimeType, data: await blobToBase64(file) } };
     }
