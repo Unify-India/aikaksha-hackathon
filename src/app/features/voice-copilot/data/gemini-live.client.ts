@@ -5,8 +5,9 @@ import { environment } from '../../../../environments/environment';
 /**
  * Thin wrapper over the Gemini Live API (bidirectional WebSocket) for the Voice Copilot.
  *
- * ⚠ LOCAL DEVELOPMENT ONLY: connects with `environment.gemini.apiKey`, which is visible in the
- * browser. Before deploying, mint short-lived ephemeral tokens on the server instead.
+ * When a backend is configured (`environment.examApi`), the session opens with a short-lived,
+ * single-use token from `POST /api/ai/live-token`, so no Gemini key is in the browser. Without a
+ * backend (local only), it uses `environment.gemini.apiKey`.
  */
 
 export interface ILiveSessionConfig {
@@ -32,9 +33,32 @@ const LIVE_API_VERSION = 'v1beta';
 export class GeminiLiveClient {
   private session: Session | null = null;
 
+  /** Backend that mints Live tokens; null when running without one (local key mode). */
+  private readonly tokenEndpoint = environment.examApi?.baseUrl
+    ? { url: `${environment.examApi.baseUrl}/api/ai/live-token`, demoToken: environment.examApi.demoToken }
+    : null;
+
   isConfigured(): boolean {
+    if (!environment.gemini.liveModel) return false;
+    if (this.tokenEndpoint) return true;
     const key = environment.gemini.apiKey?.trim();
-    return !!key && key !== PLACEHOLDER_KEY && !!environment.gemini.liveModel;
+    return !!key && key !== PLACEHOLDER_KEY;
+  }
+
+  /** Key for the Live session: a server-minted ephemeral token (v1alpha), or the local key (v1beta). */
+  private async credentials(): Promise<{ apiKey: string; apiVersion: string }> {
+    if (!this.tokenEndpoint) return { apiKey: environment.gemini.apiKey, apiVersion: LIVE_API_VERSION };
+    const response = await fetch(this.tokenEndpoint.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.tokenEndpoint.demoToken}` },
+      body: JSON.stringify({ model: environment.gemini.liveModel }),
+    });
+    const json = (await response.json().catch(() => ({}))) as { token?: string; error?: { message?: string } };
+    if (!response.ok || !json.token) {
+      throw new Error(json.error?.message ?? `Could not get a voice session token (HTTP ${response.status}).`);
+    }
+    // Ephemeral tokens only work on v1alpha (the SDK then uses BidiGenerateContentConstrained).
+    return { apiKey: json.token, apiVersion: 'v1alpha' };
   }
 
   get isOpen(): boolean {
@@ -43,7 +67,8 @@ export class GeminiLiveClient {
 
   async connect(config: ILiveSessionConfig, handlers: ILiveHandlers): Promise<void> {
     this.close();
-    const ai = new GoogleGenAI({ apiKey: environment.gemini.apiKey, httpOptions: { apiVersion: LIVE_API_VERSION } });
+    const { apiKey, apiVersion } = await this.credentials();
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion } });
     let opened: Session | null = null;
     const session = await ai.live.connect({
       model: environment.gemini.liveModel,
