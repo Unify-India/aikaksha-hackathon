@@ -93,7 +93,7 @@ import { FileDropZoneComponent } from '../file-drop-zone/file-drop-zone.componen
                 }
                 <button type="button"
                   class="rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
-                  [disabled]="disabled()"
+                  [disabled]="reviewDisabled()"
                   [attr.aria-label]="'Review drafted scheme ' + scheme.title"
                   (click)="reviewPending.emit(scheme.id)">
                   Review
@@ -126,6 +126,8 @@ export class SchemePickerComponent {
   readonly selectedId = input<string | null>(null);
   readonly loading = input(false);
   readonly disabled = input(false);
+  /** Reading a draft stays possible while another scheme is drafting. */
+  readonly reviewDisabled = input(false);
 
   readonly selected = output<string>();
   readonly questionPaper = output<File>();

@@ -57,15 +57,75 @@ interface IStep {
               </span>
             </p>
           </div>
-          @if (store.phase() !== 'setup') {
-            <button
-              type="button"
-              class="min-h-11 cursor-pointer rounded-md border border-white/50 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/15"
-              (click)="store.startOver()"
-            >
-              Start a new batch
-            </button>
-          }
+
+          <div class="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:items-end">
+            @if (store.accuracy(); as acc) {
+              @if (acc.percent !== null) {
+                <!-- Headline KPI: cumulative AI grading accuracy across every saved record -->
+                <section
+                  aria-labelledby="accuracy-label"
+                  class="w-full rounded-xl border border-white/25 bg-white/10 p-4 shadow-lg shadow-indigo-950/20 backdrop-blur-sm sm:w-80"
+                >
+                  <p id="accuracy-label" class="text-xs font-semibold uppercase tracking-wider text-indigo-100">
+                    AI grading accuracy · all papers
+                  </p>
+                  <p class="group relative mt-1 flex items-baseline gap-2" aria-live="polite">
+                    <span class="font-serif text-5xl font-semibold leading-none text-white">{{ acc.percent }}%</span>
+                    <span class="text-xs text-indigo-100">across {{ acc.measured + acc.estimated }} answers</span>
+                    <span tabindex="0" role="button" class="ml-0.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 align-middle text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-accuracy" aria-label="What is AI grading accuracy?">i</span>
+                    <span id="tip-accuracy" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 left-0 top-full mt-2">
+                      How often the AI's marks are right. Answers a teacher checked count as the truth (kept = right,
+                      changed = wrong); unchecked answers count at Gemini's own confidence.
+                    </span>
+                  </p>
+                  <div
+                    class="mt-3 h-2 overflow-hidden rounded-full bg-white/20"
+                    role="meter"
+                    aria-labelledby="accuracy-label"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    [attr.aria-valuenow]="acc.percent"
+                    [attr.aria-valuetext]="acc.percent + '% accuracy'"
+                  >
+                    <div class="h-full rounded-full transition-[width] duration-700" [class]="accuracyBarClass()" [style.width.%]="acc.percent"></div>
+                  </div>
+                  <dl class="mt-3 grid grid-cols-3 gap-2 text-center">
+                    <div class="group relative rounded-md bg-white/10 px-1 py-1.5">
+                      <dt class="text-[10px] uppercase tracking-wide text-indigo-100">Teacher-checked <span tabindex="0" role="button" class="ml-0.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 align-middle text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-checked" aria-label="What is Teacher-checked?">i</span></dt>
+                      <dd class="font-mono text-sm font-semibold text-white">{{ acc.measured }}</dd>
+                      <span id="tip-checked" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 left-0 bottom-full mb-2">Answers a teacher confirmed or corrected: on approved sheets or in the Review Gate. These count as real right/wrong.</span>
+                    </div>
+                    <div class="group relative rounded-md bg-white/10 px-1 py-1.5">
+                      <dt class="text-[10px] uppercase tracking-wide text-indigo-100">AI-estimated <span tabindex="0" role="button" class="ml-0.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 align-middle text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-estimated" aria-label="What is AI-estimated?">i</span></dt>
+                      <dd class="font-mono text-sm font-semibold text-white">{{ acc.estimated }}</dd>
+                      <span id="tip-estimated" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 left-1/2 -translate-x-1/2 bottom-full mb-2">Graded answers no teacher has checked yet. Each counts at Gemini's confidence (95% sure = 0.95 right).</span>
+                    </div>
+                    <div class="group relative rounded-md bg-white/10 px-1 py-1.5">
+                      <span id="tip-flagged" role="tooltip" class="pointer-events-none invisible absolute z-20 w-56 rounded-md bg-slate-950 px-3 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 right-0 bottom-full mb-2">
+                        Answers where Gemini was less than 90% sure, so they were sent to the Review Gate for a teacher.
+                        "Still open" = not checked yet.
+                      </span>
+                      <dt class="text-[10px] uppercase tracking-wide text-indigo-100">Flagged <span tabindex="0" role="button" class="ml-0.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-white/60 align-middle text-[9px] font-bold leading-none text-white focus-visible:outline-2 focus-visible:outline-white" aria-describedby="tip-flagged" aria-label="What is Flagged?">i</span></dt>
+                      <dd class="font-mono text-sm font-semibold text-white">{{ acc.flagged }}</dd>
+                      <dd class="text-[10px] text-indigo-100">{{ acc.lowConfidence }} still open</dd>
+                    </div>
+                  </dl>
+                  <p class="mt-2 text-[11px] leading-snug text-indigo-100">
+                    Checked answers count as the truth; the rest use Gemini's confidence. Every approval or correction updates this.
+                  </p>
+                </section>
+              }
+            }
+            @if (store.phase() !== 'setup') {
+              <button
+                type="button"
+                class="min-h-11 cursor-pointer rounded-md border border-white/50 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/15"
+                (click)="store.startOver()"
+              >
+                ← Back to question papers
+              </button>
+            }
+          </div>
         </div>
       </section>
 
@@ -167,6 +227,7 @@ interface IStep {
               <app-scheme-review
                 [scheme]="draft"
                 [busy]="store.busy() === 'approving'"
+                [waiting]="store.busy() !== 'idle' && store.busy() !== 'approving'"
                 [questionPaperUrl]="store.paperUrls()[draft.id] ?? null"
                 (approve)="store.approveDraft($event)"
                 (discard)="store.discardDraft()"
@@ -186,6 +247,7 @@ interface IStep {
                 [selectedId]="store.selectedSchemeId()"
                 [loading]="store.busy() === 'loading_schemes'"
                 [disabled]="store.busy() !== 'idle'"
+                [reviewDisabled]="store.busy() === 'approving'"
                 (selected)="store.selectScheme($event)"
                 (reviewPending)="store.reviewPending($event)"
                 (viewAnswers)="store.viewScheme($event)"
@@ -279,6 +341,15 @@ interface IStep {
         </dl>
 
         @if (view() === 'table') {
+          <div>
+            <button
+              type="button"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-600 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
+              (click)="store.startOver()"
+            >
+              ← Back to question papers
+            </button>
+          </div>
           <app-class-results-table
             [sheets]="store.sheets()"
             [scheme]="store.jobScheme()"
@@ -451,6 +522,22 @@ export class EvaluationCockpitComponent {
           css: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200',
         };
     }
+  });
+
+  /** Green from 95%, amber from 85%, red below — light shades for the dark banner. */
+  protected readonly accuracyBarClass = computed(() => {
+    const p = this.store.accuracy().percent ?? 0;
+    return p >= 95 ? 'bg-emerald-300' : p >= 85 ? 'bg-amber-300' : 'bg-rose-300';
+  });
+
+  /** "measured on 98 teacher-checked answers (100%) · estimated on 147 unchecked (96.2% AI confidence)" */
+  protected readonly accuracyBreakdown = computed(() => {
+    const a = this.store.accuracy();
+    const parts: string[] = [];
+    if (a.measured) parts.push(`measured on ${a.measured} teacher-checked answers (${a.measuredPercent}%)`);
+    if (a.estimated) parts.push(`estimated on ${a.estimated} unchecked (${a.estimatedPercent}% AI confidence)`);
+    if (a.flagged) parts.push(`${a.flagged} flagged for review so far (${a.lowConfidence} still open)`);
+    return parts.join(' · ');
   });
 
   protected readonly marksReadOnly = computed(() => {

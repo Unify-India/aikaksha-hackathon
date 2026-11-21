@@ -58,15 +58,26 @@ const VERDICT: Record<QuestionVerdict, { icon: string; text: string; css: string
                   <span class="block font-normal text-slate-600 dark:text-slate-400">/{{ q.maxMarks }}</span>
                 </th>
               }
-              <th scope="col" class="px-3 py-2"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             @for (sheet of sheets(); track sheet.submissionId) {
               @let results = resultsBy(sheet);
-              <tr [class]="sheet.submissionId === activeId() ? 'bg-indigo-50/60 dark:bg-indigo-950/30' : ''">
+              <tr
+                [class]="(sheet.submissionId === activeId() ? 'bg-indigo-50/60 dark:bg-indigo-950/30 ' : '') + (sheet.status === 'queued' ? '' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60')"
+                (click)="sheet.status !== 'queued' && open.emit(sheet.submissionId)"
+              >
                 <th scope="row" class="sticky left-0 whitespace-nowrap bg-white px-3 py-2 font-semibold text-slate-900 dark:bg-slate-900 dark:text-white">
-                  {{ sheet.studentLabel }}
+                  <!-- The row is clickable with a mouse; this button is the keyboard / screen-reader way in. -->
+                  <button
+                    type="button"
+                    class="rounded px-1 text-left font-semibold text-indigo-800 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:text-slate-500 disabled:no-underline dark:text-indigo-300"
+                    [disabled]="sheet.status === 'queued'"
+                    [attr.aria-label]="'Review ' + sheet.studentLabel"
+                    (click)="$event.stopPropagation(); open.emit(sheet.submissionId)"
+                  >
+                    {{ sheet.studentLabel }}
+                  </button>
                 </th>
                 <td class="whitespace-nowrap px-3 py-2 text-xs font-semibold" [class]="statusOf(sheet.status).css">
                   {{ statusOf(sheet.status).text }}
@@ -104,17 +115,6 @@ const VERDICT: Record<QuestionVerdict, { icon: string; text: string; css: string
                     }
                   </td>
                 }
-                <td class="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    class="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:opacity-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
-                    [disabled]="sheet.status === 'queued'"
-                    [attr.aria-label]="'Review ' + sheet.studentLabel"
-                    (click)="open.emit(sheet.submissionId)"
-                  >
-                    {{ sheet.status === 'approved' ? 'View' : 'Review' }}
-                  </button>
-                </td>
               </tr>
             }
           </tbody>

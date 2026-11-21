@@ -1,6 +1,6 @@
 import { IQuestionResult, ISheetEvaluation } from '../models/evaluation.models';
 import { SAMPLE_MATHS_SCHEME } from './evaluation-fixtures.testing';
-import { collectDecisions, learningStats, pickExamples, teacherExamplesPrompt } from './teacher-feedback';
+import { accuracyEstimate, collectDecisions, learningStats, pickExamples, teacherExamplesPrompt } from './teacher-feedback';
 
 const q = (questionId: string, awarded: number, extra: Partial<IQuestionResult> = {}): IQuestionResult => ({
   questionId,
@@ -73,5 +73,30 @@ describe('learning from teacher decisions', () => {
     expect(text).toContain('B·Q2 (max 2): student wrote "working for B2". AI gave 1; the TEACHER CORRECTED it to 2.');
     expect(text).toContain('the teacher CONFIRMED 1');
     expect(teacherExamplesPrompt([])).toBe('');
+  });
+
+  describe('accuracyEstimate', () => {
+    it('uses teacher decisions as truth and AI confidence for unchecked answers', () => {
+      const a = accuracyEstimate([
+        // Approved sheet: B2 corrected (wrong), B3 kept (right) → measured 1 of 2.
+        sheet('approved', [q('B2', 1, { teacherOverride: 2 }), q('B3', 2)]),
+        // Graded sheet: B5 checked in the Review Gate (right); B6 unchecked at 80% confidence.
+        sheet('graded', [q('B5', 1, { teacherVerified: true }), q('B6', 0, { confidence: 0.8 })]),
+      ]);
+      // (1 kept + 1 verified + 0.8) / 4 = 70%
+      expect(a).toEqual({
+        percent: 70,
+        measured: 3,
+        measuredPercent: 66.7,
+        estimated: 1,
+        estimatedPercent: 80,
+        lowConfidence: 1,
+        flagged: 1,
+      });
+    });
+
+    it('ignores sheets that are not graded yet, and is null with nothing graded', () => {
+      expect(accuracyEstimate([sheet('queued', [q('B2', 1)]), sheet('failed', [])]).percent).toBeNull();
+    });
   });
 });

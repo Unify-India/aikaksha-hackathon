@@ -107,3 +107,61 @@ export function teacherExamplesPrompt(examples: ITeacherDecision[]): string {
     ...lines,
   ].join('\n');
 }
+
+export interface IAccuracyEstimate {
+  /** 0–100 headline accuracy, or null when nothing has been graded yet. */
+  percent: number | null;
+  /** Answers whose correctness a teacher decided (kept = right, changed = wrong). */
+  measured: number;
+  /** Of the measured answers, the share the teacher kept (0–100), or null if none. */
+  measuredPercent: number | null;
+  /** Answers not yet checked by a teacher — counted at the AI's own confidence. */
+  estimated: number;
+  /** Average AI confidence on the unchecked answers (0–100), or null if none. */
+  estimatedPercent: number | null;
+  /** Answers below the 90% review threshold that no teacher has checked yet. */
+  lowConfidence: number;
+  /** Every answer ever flagged for review (AI confidence below 90%), including ones since checked. */
+  flagged: number;
+}
+
+/**
+ * Dynamic AI accuracy for a set of graded sheets.
+ * Teacher-checked answers count as the truth (kept = 1, corrected = 0); unchecked answers count at
+ * Gemini's self-reported confidence. As teachers review, the score moves from "estimated" to "measured".
+ */
+export function accuracyEstimate(sheets: ISheetEvaluation[]): IAccuracyEstimate {
+  let measured = 0;
+  let measuredRight = 0;
+  let estimated = 0;
+  let estimatedSum = 0;
+  let lowConfidence = 0;
+  let flagged = 0;
+  for (const sheet of sheets) {
+    if (!['graded', 'needs_review', 'approved'].includes(sheet.status)) continue;
+    const approved = sheet.status === 'approved';
+    for (const q of sheet.questions) {
+      if (q.confidence < 0.9) flagged++;
+      const corrected = q.teacherOverride !== undefined && q.teacherOverride !== q.awarded;
+      if (corrected || q.teacherVerified || approved) {
+        measured++;
+        if (!corrected) measuredRight++;
+      } else {
+        estimated++;
+        estimatedSum += q.confidence;
+        if (q.confidence < 0.9) lowConfidence++;
+      }
+    }
+  }
+  const total = measured + estimated;
+  const pct = (x: number) => Math.round(x * 1000) / 10;
+  return {
+    percent: total ? pct((measuredRight + estimatedSum) / total) : null,
+    measured,
+    measuredPercent: measured ? pct(measuredRight / measured) : null,
+    estimated,
+    estimatedPercent: estimated ? pct(estimatedSum / estimated) : null,
+    lowConfidence,
+    flagged,
+  };
+}

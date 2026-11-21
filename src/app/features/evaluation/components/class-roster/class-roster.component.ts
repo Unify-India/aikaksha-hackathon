@@ -36,7 +36,7 @@ const STATUS_ICON: Record<SheetStatus, string> = {
           <li>
             <button
               type="button"
-              class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-indigo-600"
+              class="flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-indigo-600"
               [class]="
                 sheet.submissionId === activeId()
                   ? 'bg-indigo-50 text-indigo-950 dark:bg-indigo-950/50 dark:text-indigo-100'
@@ -45,15 +45,18 @@ const STATUS_ICON: Record<SheetStatus, string> = {
               [attr.aria-current]="sheet.submissionId === activeId() ? 'true' : null"
               (click)="selected.emit(sheet.submissionId)"
             >
-              <span aria-hidden="true" class="w-4 text-center" [class]="iconClass(sheet.status)">
+              <span aria-hidden="true" class="mt-0.5 w-4 shrink-0 text-center" [class]="iconClass(sheet.status)">
                 {{ icon(sheet.status) }}
               </span>
-              <span class="flex-1 font-semibold">{{ sheet.studentLabel }}</span>
-              <span class="text-xs">
-                @if (sheet.questions.length) {
-                  <span class="font-mono font-semibold">{{ sheet.totalAwarded }}/{{ sheet.totalMax }}</span> ·
-                }
-                {{ statusText(sheet.status) }}
+              <span class="min-w-0 flex-1">
+                <span class="block whitespace-nowrap font-semibold">{{ sheet.studentLabel }}</span>
+                <span class="block text-xs text-slate-600 dark:text-slate-300">
+                  @if (sheet.questions.length) {
+                    <span class="font-mono font-semibold text-slate-800 dark:text-slate-100">{{ sheet.totalAwarded }}/{{ sheet.totalMax }}</span>
+                    ·
+                  }
+                  {{ statusText(sheet.status) }}
+                </span>
               </span>
             </button>
           </li>

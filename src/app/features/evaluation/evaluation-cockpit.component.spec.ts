@@ -139,4 +139,18 @@ describe('EvaluationCockpitComponent', () => {
     expect(el.textContent).not.toContain('Marking scheme (approved)');
     expect(el.textContent).toContain('1. Marking scheme');
   });
+  it('opens a student by clicking anywhere on their row in the results table', async () => {
+    const fixture = TestBed.createComponent(EvaluationCockpitComponent);
+    const store = TestBed.inject(EvaluationStore);
+    await vi.waitFor(() => expect(store.selectedScheme()).not.toBeNull());
+    await store.startGrading([pdf('Md Sadab 12.pdf')]);
+    await vi.waitFor(() => expect(store.phase()).toBe('review'), { timeout: 8_000, interval: 100 });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    el.querySelector<HTMLTableRowElement>('tbody tr')!.querySelectorAll('td')[3].click(); // a marks cell, not the button
+    fixture.detectChanges();
+    expect(el.textContent).toContain('Back to class results');
+    expect(store.activeSheet()!.studentLabel).toBe('Student A');
+  }, 15_000);
 });

@@ -45,7 +45,8 @@ import { IMarkingScheme } from '../../models/evaluation.models';
           <button
             type="button"
             class="rounded-lg bg-indigo-700 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
-            [disabled]="busy()"
+            [disabled]="busy() || waiting()"
+            [attr.aria-describedby]="waiting() ? 'approve-wait-hint' : null"
             (click)="approve.emit(scheme())"
           >
             {{ busy() ? 'Approving…' : 'Approve scheme' }}
@@ -53,6 +54,11 @@ import { IMarkingScheme } from '../../models/evaluation.models';
           }
         </div>
       </div>
+      @if (!readOnly() && waiting()) {
+        <p id="approve-wait-hint" role="status" class="mt-2 text-xs text-slate-700 dark:text-slate-300">
+          Another scheme is being drafted right now — you can read this one, and approve it once that draft finishes.
+        </p>
+      }
 
       <ol class="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
         @for (q of scheme().questions; track q.id) {
@@ -87,6 +93,8 @@ import { IMarkingScheme } from '../../models/evaluation.models';
 export class SchemeReviewComponent {
   readonly scheme = input.required<IMarkingScheme>();
   readonly busy = input(false);
+  /** Another job (e.g. drafting a different scheme) is running: read now, approve later. */
+  readonly waiting = input(false);
   /** Show an approved scheme without the Approve button. */
   readonly readOnly = input(false);
   /** Link to the uploaded question paper PDF, to compare with the drafted answers. */

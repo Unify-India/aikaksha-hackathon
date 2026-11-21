@@ -10,7 +10,7 @@ import { EVALUATION_BACKEND, EVALUATION_ENGINE, IUploadSheet } from './evaluatio
 import { EVALUATION_REPOSITORY } from './evaluation-repository';
 import { PdfDocumentService } from './pdf-document.service';
 import { summariseSheet } from './sheet-summary';
-import { collectDecisions, learningStats, pickExamples } from './teacher-feedback';
+import { accuracyEstimate, collectDecisions, learningStats, pickExamples } from './teacher-feedback';
 
 export type EvaluationPhase = 'setup' | 'grading' | 'review';
 export type BusyState = 'idle' | 'loading_schemes' | 'drafting' | 'approving' | 'uploading' | 'saving' | 'retrying';
@@ -113,6 +113,19 @@ export class EvaluationStore {
   readonly approvedCount = computed(() => this.sheets().filter((s) => s.status === 'approved').length);
   readonly reviewCount = computed(() => this.sheets().filter((s) => s.needsReview && s.status !== 'approved').length);
   /** How often teachers kept the AI's marks on the selected question paper, and how many corrections exist. */
+  /** Dynamic AI accuracy for the sheets on screen (teacher-checked = truth, unchecked = AI confidence). */
+  /** Every graded sheet saved under every question paper (for the cumulative accuracy score). */
+  readonly allSavedSheets = signal<ISheetEvaluation[]>([]);
+  /**
+   * Cumulative AI accuracy across ALL records: saved sheets of every paper, with this session's
+   * sheets (graded, approved or corrected just now) replacing their saved copies.
+   */
+  readonly accuracy = computed(() => {
+    const byId = new Map(this.allSavedSheets().map((s) => [s.submissionId, s]));
+    for (const s of this.savedSheets()) byId.set(s.submissionId, s);
+    for (const s of this.sheets()) byId.set(s.submissionId, s);
+    return accuracyEstimate([...byId.values()]);
+  });
   readonly learning = computed(() =>
     learningStats(collectDecisions(this.job() ? this.sheets() : this.savedSheets(), this.selectedScheme())),
   );
@@ -122,6 +135,7 @@ export class EvaluationStore {
       const schemes = this.persist ? await this.repo.listPapers() : await this.backend.listSchemes();
       this.schemes.set(schemes);
       void this.resolvePaperUrls(schemes);
+      void this.loadAllSheets(schemes);
       if (!this.selectedSchemeId()) {
         const first = schemes.find((s) => s.status === 'approved');
         if (first) await this.selectScheme(first.id);
@@ -409,6 +423,18 @@ export class EvaluationStore {
 
   dismissWarning(): void {
     this.warning.set(null);
+  }
+
+  /** Loads the graded sheets of every approved question paper, for the cumulative accuracy score. */
+  private async loadAllSheets(papers: IMarkingScheme[]): Promise<void> {
+    try {
+      const lists = await Promise.all(
+        papers.filter((p) => p.status === 'approved').map((p) => this.repo.listSheets(p.id)),
+      );
+      this.allSavedSheets.set(lists.flat());
+    } catch {
+      // The score then covers only what is on screen; not worth interrupting the teacher.
+    }
   }
 
   /** Looks up "view" links for question papers whose PDF is saved (failures just hide the link). */
