@@ -50,12 +50,12 @@ export class GeminiLiveClient {
   }
 
   /**
-   * Key for the Live session: a server-minted ephemeral token (v1alpha). If the server cannot give
-   * one, falls back to environment.gemini.apiKey (v1beta) when a real key is set there.
+   * Key for the Live session: environment.gemini.apiKey (v1beta) when a real key is set there
+   * (environment.prod.ts on the live site); otherwise a server-minted ephemeral token (v1alpha).
    */
   private async credentials(): Promise<{ apiKey: string; apiVersion: string }> {
     const fallback = { apiKey: environment.gemini.apiKey, apiVersion: LIVE_API_VERSION };
-    if (!this.tokenEndpoint) return fallback;
+    if (this.hasFallbackKey() || !this.tokenEndpoint) return fallback;
     try {
       const response = await fetch(this.tokenEndpoint.url, {
         method: 'POST',
