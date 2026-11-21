@@ -106,6 +106,13 @@ export class EvaluationStore {
     const id = this.activeSheetId();
     return id ? (this.localFiles()[id] ?? null) : null;
   });
+  /** Sheet ids whose saved PDF is being downloaded from Storage right now. */
+  private readonly downloadingFiles = signal<ReadonlySet<string>>(new Set());
+  /** True while the active sheet's PDF is still downloading (the viewer shows a loader). */
+  readonly activeFileLoading = computed(() => {
+    const id = this.activeSheetId();
+    return !!id && this.downloadingFiles().has(id);
+  });
   readonly jobScheme = computed(() => this.schemes().find((s) => s.id === this.job()?.schemeId) ?? null);
   readonly finishedCount = computed(
     () => this.sheets().filter((s) => !['queued', 'grading'].includes(s.status)).length,
@@ -455,12 +462,19 @@ export class EvaluationStore {
   private async ensureFile(submissionId: string): Promise<void> {
     if (this.localFiles()[submissionId] || !this.persist) return;
     const sheet = this.sheets().find((s) => s.submissionId === submissionId);
-    if (!sheet?.filePath) return;
+    if (!sheet?.filePath || this.downloadingFiles().has(submissionId)) return;
+    this.downloadingFiles.update((ids) => new Set(ids).add(submissionId));
     try {
       const file = await this.repo.downloadSheetFile(sheet);
       if (file) this.localFiles.update((files) => ({ ...files, [submissionId]: file }));
     } catch (e) {
       this.warning.set(`Could not load the saved PDF for ${sheet.studentLabel}: ${errorText(e)}`);
+    } finally {
+      this.downloadingFiles.update((ids) => {
+        const next = new Set(ids);
+        next.delete(submissionId);
+        return next;
+      });
     }
   }
 

@@ -140,9 +140,19 @@ const VERDICT_TEXT: Record<QuestionVerdict, string> = {
         @if (loadError()) {
           <p role="alert" class="p-6 text-center text-sm text-rose-800 dark:text-rose-300">{{ loadError() }}</p>
         } @else if (!pageImage()) {
-          <p class="p-6 text-center text-sm text-slate-600 dark:text-slate-300">
-            {{ file() ? 'Rendering page…' : 'Select a sheet to view it.' }}
-          </p>
+          @if (file() || fileLoading()) {
+            <div class="flex min-h-[440px] flex-col items-center justify-center gap-3" role="status" aria-live="polite">
+              <span aria-hidden="true"
+                class="size-10 rounded-full border-4 border-slate-300 border-t-indigo-700 motion-safe:animate-spin dark:border-slate-700 dark:border-t-indigo-400"></span>
+              <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
+                {{ file() ? 'Preparing page…' : 'Loading answer sheet…' }}
+              </span>
+            </div>
+          } @else {
+            <p class="p-6 text-center text-sm text-slate-600 dark:text-slate-300">
+              {{ sheet() ? 'No saved PDF for this sheet.' : 'Select a sheet to view it.' }}
+            </p>
+          }
         } @else {
           <div class="relative mx-auto" [style.width.%]="zoom()">
             @if (showingCopy()) {
@@ -203,6 +213,8 @@ export class AnswerSheetViewerComponent {
   private readonly pdf = inject(PdfDocumentService);
 
   readonly file = input<File | null>(null);
+  /** True while the sheet's PDF is still downloading; shows a loader instead of an empty state. */
+  readonly fileLoading = input(false);
   readonly sheet = input<ISheetEvaluation | null>(null);
   readonly scheme = input<IMarkingScheme | null>(null);
   readonly selectedQuestionId = input<string | null>(null);
